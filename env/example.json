@@ -1,0 +1,7 @@
+{
+  "TENANT": "daralshay",
+  "WEB_URL": "https://daralshay.dynaops365.net/",
+  "API_BASE_URL": "https://daralshayapi.dynaops365.net/api/",
+  "POSTHOG_KEY": "",
+  "POSTHOG_HOST": "https://eu.i.posthog.com"
+}

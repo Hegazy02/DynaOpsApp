@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.example.dynaopsapp"
-    compileSdk = flutter.compileSdkVersion
+    // 37: permission_handler_android requires it. targetSdk stays 36 (D12).
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

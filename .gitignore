@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Tenant configs (D9): only the example is committed
+/env/*.json
+!/env/example.json
