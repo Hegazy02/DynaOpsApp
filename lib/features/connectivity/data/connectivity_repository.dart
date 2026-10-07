@@ -14,6 +14,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 
 import '../../../core/logging/app_logger.dart';
+import '../../request_inspector/data/request_log_interceptor.dart';
 import 'network_status_model.dart';
 
 /// Transport changes from `connectivity_plus`, confirmed by a reachability
@@ -80,6 +81,8 @@ class ConnectivityRepository {
           sendTimeout: probeTimeout,
           receiveTimeout: probeTimeout,
           validateStatus: (_) => true,
+          // Probes run on every transport change; keep them out of the request inspector.
+          extra: {RequestLogInterceptor.skipKey: true},
         ),
       );
       return true;

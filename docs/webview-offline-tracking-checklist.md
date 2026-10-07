@@ -605,6 +605,7 @@ The user's stated direction: after tracking, bring offline support to other feat
 
 ## 13. Permissions & foreground-service requirements
 
+- [x] **Mandatory permissions (decided 2026-10-07):** the app cannot be used until tracking has everything it needs — precise location, location "all the time", notifications and the battery-optimisation exemption (`PermissionStatusModel.trackingReady`). The router's `PermissionGate` sends every route except the walkthrough, diagnostics and the request inspector to `/permissions`, at launch and whenever a permission changes (e.g. revoked in Settings). Required steps cannot be skipped; system back leaves the app; only the maker hint is skippable and shows once per install. This replaces the earlier "prompt once" `TrackingCubit`, which was removed. GPS switched off is not a permission and is not gated (tracking reports `LOCATION_DISABLED`). Angular's journey screen no longer shows a tracking state chip.
 - [ ] Permission walkthrough screen (native, localised en/ar) shown on first launch after login and whenever tracking reports `permission_required`:
   1. foreground location (fine); Android 12+ "approximate" → explain and re-request precise;
   2. **background location** — Android 10 shows "Allow all the time" in the dialog; Android 11+ requires app settings with on-screen instructions;

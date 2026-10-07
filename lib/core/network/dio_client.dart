@@ -14,10 +14,19 @@ import 'package:flutter/foundation.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 
 import '../../features/auth/data/session_repository.dart';
+import '../../features/request_inspector/data/request_log_dao.dart';
+import '../../features/request_inspector/data/request_log_interceptor.dart';
 import '../config/app_config.dart';
 
 /// The single Dio instance for this isolate (flutter-dio-repository-setup).
-Dio createDioClient(AppConfig config, SessionRepository session) {
+/// With [requestLog] every exchange is also recorded for the request
+/// inspector, tagged with [source] (`ui` or `service`).
+Dio createDioClient(
+  AppConfig config,
+  SessionRepository session, {
+  RequestLogDao? requestLog,
+  String source = 'ui',
+}) {
   final dio = Dio(
     BaseOptions(
       baseUrl: config.apiBaseUrl.toString(),
@@ -26,6 +35,8 @@ Dio createDioClient(AppConfig config, SessionRepository session) {
     ),
   );
   dio.interceptors.add(AuthInterceptor(session));
+  // After AuthInterceptor, so the recorded headers are the ones actually sent.
+  if (requestLog != null) dio.interceptors.add(RequestLogInterceptor(requestLog, source: source));
   if (kDebugMode) {
     // Bodies off: they carry location history and sometimes tokens.
     dio.interceptors.add(PrettyDioLogger(requestBody: false, responseBody: false));

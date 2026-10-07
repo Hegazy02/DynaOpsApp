@@ -18,7 +18,6 @@ abstract final class SyncMetaKeys {
   /// '1' from the service's start to its clean destroy; still '1' with no
   /// service running means it was force-stopped or killed (§8.2).
   static const serviceRunning = 'service_running';
-  static const lastPurgeAt = 'last_purge_at';
 }
 
 class SyncMetaDao {

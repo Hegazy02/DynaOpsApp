@@ -1,7 +1,8 @@
 /// `LocationPointsDao`: hand-written SQL for the location points store (§9):
-/// insert, claim a batch for upload, mark synced/pending/failed, counts,
-/// latest fix, dead-letter requeue and retention purge. Every query is scoped
-/// to one `userId`.
+/// insert, claim a batch for upload, mark synced/pending/failed, delete
+/// synced rows after upload (the only cleanup — the phone keeps no location
+/// history), counts, latest fix and dead-letter requeue. Every query is
+/// scoped to one `userId`.
 ///
 /// Why it exists: raw data-source layer under `LocationRepository` and
 /// `SyncManager`; claim-by-batch-id makes it safe for both isolates.
@@ -12,6 +13,7 @@ library;
 import 'package:sqflite/sqflite.dart';
 
 import 'location_fix_model.dart';
+import 'queued_fix_model.dart';
 
 class PointCounts {
   const PointCounts({required this.pending, required this.failed});
@@ -67,6 +69,14 @@ class LocationPointsDao {
         {'state': FixState.synced.wire, 'last_error': null},
         where: 'batch_id = ? AND state = ?',
         whereArgs: [batchId, FixState.uploading.wire],
+      );
+
+  /// Deletes [userId]'s `synced` rows — the server has them — except the
+  /// user's newest row, which `tracking.latest` may still answer from.
+  Future<int> deleteSynced(String userId) => _db.rawDelete(
+        'DELETE FROM $_table WHERE user_id = ? AND state = ? AND id != '
+        '(SELECT id FROM $_table WHERE user_id = ? ORDER BY captured_at DESC LIMIT 1)',
+        [userId, FixState.synced.wire, userId],
       );
 
   /// Back to `pending`; with [countAttempt] the attempt counts toward
@@ -127,6 +137,18 @@ class LocationPointsDao {
     return PointCounts(pending: pending, failed: failed);
   }
 
+  /// Not-yet-synced fixes of [userId] (pending, uploading, failed), oldest first.
+  Future<List<QueuedFixModel>> queued(String userId, {int limit = 500}) async {
+    final rows = await _db.query(
+      _table,
+      where: 'user_id = ? AND state != ?',
+      whereArgs: [userId, FixState.synced.wire],
+      orderBy: 'captured_at ASC',
+      limit: limit,
+    );
+    return rows.map(QueuedFixModel.fromRow).toList();
+  }
+
   Future<LocationFixModel?> latest(String userId) async {
     final rows = await _db.query(
       _table,
@@ -136,24 +158,6 @@ class LocationPointsDao {
       limit: 1,
     );
     return rows.isEmpty ? null : LocationFixModel.fromRow(rows.first);
-  }
-
-  /// Retention (§9): drops `synced` rows older than [syncedBefore], then the
-  /// oldest `synced` rows beyond [maxRows]. Never touches pending or failed.
-  Future<int> purge({required DateTime syncedBefore, required int maxRows}) async {
-    var removed = await _db.delete(
-      _table,
-      where: 'state = ? AND captured_at < ?',
-      whereArgs: [FixState.synced.wire, syncedBefore.toUtc().millisecondsSinceEpoch],
-    );
-    final total = Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM $_table')) ?? 0;
-    if (total > maxRows) {
-      removed += await _db.rawDelete(
-        'DELETE FROM $_table WHERE id IN (SELECT id FROM $_table WHERE state = ? ORDER BY captured_at ASC LIMIT ?)',
-        [FixState.synced.wire, total - maxRows],
-      );
-    }
-    return removed;
   }
 
   static String _placeholders(int n) => List.filled(n, '?').join(', ');

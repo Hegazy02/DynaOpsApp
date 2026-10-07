@@ -1,5 +1,6 @@
 /// `SyncManager`: uploads pending fixes in batches (§11). One cycle at a time;
-/// oldest first; claims each batch atomically; 2xx → synced; 400/413/422 →
+/// oldest first; claims each batch atomically; 2xx → synced, then deleted
+/// (all but the user's newest row); 400/413/422 →
 /// failed for good; 403 → failed but retryable; 401 → pause and mark the
 /// session expired (rows kept); transient errors → back to pending with
 /// exponential backoff, dead-lettered after `maxAttempts`. Emits
@@ -96,6 +97,8 @@ class SyncManager {
         try {
           await _uploader.upload(batch);
           await _points.markSynced(batchId);
+          // The server has them now; keep no location history on the phone.
+          await _points.deleteSynced(session.userId);
           processed += batch.length;
           _consecutiveFailures = 0;
           _nextAllowedAt = null;

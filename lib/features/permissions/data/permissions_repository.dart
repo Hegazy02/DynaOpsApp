@@ -1,13 +1,16 @@
 /// `PermissionsRepository`: wraps `permission_handler` (§13) — reads the
-/// status snapshot, requests permissions one at a time without looping on
-/// `permanentlyDenied`, asks for CAMERA once per install so the WebView file
-/// chooser can offer the camera, opens system settings, and publishes changes.
+/// status snapshot (plus precise location and the phone's Location switch,
+/// via `LocationSource`), requests permissions one at a time without looping
+/// on `permanentlyDenied`, asks for CAMERA once per install so the WebView file
+/// chooser can offer the camera, opens system settings, and publishes every
+/// change — including the Location switch flipping while the app is open (the
+/// permission gate and the walkthrough re-check on each one).
 ///
 /// Why it exists: Android permission rules (background location only after
 /// foreground, battery exemption dialog) live here, not in handlers or Cubits.
 /// Status: used — registered in both locators; called by `ShellCubit`,
 /// `AppHandler`, `PermissionsHandler`, the walkthrough (`PermissionsCubit`),
-/// `TrackingCubit`, `TrackingRepository` and `TrackingEngine`.
+/// `PermissionGate`, `TrackingRepository` and `TrackingEngine`.
 library;
 
 import 'dart:async';
@@ -16,12 +19,20 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/network/failure.dart';
 import '../../../core/storage/prefs_store.dart';
+import '../../tracking/data/location_source.dart';
 import 'permission_status_model.dart';
 
 /// `permission_handler` wrapper (§13). Requests are sequential and never loop
 /// on `permanentlyDenied` — callers offer `app.openSettings` instead.
 class PermissionsRepository {
-  PermissionsRepository(this._prefs);
+  PermissionsRepository(this._prefs, this._location) {
+    _changes = StreamController<PermissionStatusModel>.broadcast(
+      // Turning the phone's Location switch on/off raises no app resume, so
+      // while anyone listens, watch it and publish the new status at once.
+      onListen: () => _serviceWatch = _location.serviceEnabledChanges().listen((_) => _refreshQuietly()),
+      onCancel: () => _serviceWatch?.cancel(),
+    );
+  }
 
   static const _cameraAskedKey = 'camera_permission_asked';
   static const _walkthroughDoneKey = 'permission_walkthrough_done';
@@ -32,22 +43,35 @@ class PermissionsRepository {
   Future<void> setWalkthroughCompleted() => _prefs.setBool(_walkthroughDoneKey, true);
 
   final PrefsStore _prefs;
-  final _changes = StreamController<PermissionStatusModel>.broadcast();
+  final LocationSource _location;
+  late final StreamController<PermissionStatusModel> _changes;
+  StreamSubscription<bool>? _serviceWatch;
   PermissionStatusModel? _last;
 
   Stream<PermissionStatusModel> get changes => _changes.stream;
 
   Future<PermissionStatusModel> status() async {
     try {
+      final location = _map(await Permission.location.status);
       return PermissionStatusModel(
-        location: _map(await Permission.location.status),
+        location: location,
         backgroundLocation: _map(await Permission.locationAlways.status),
         notifications: _map(await Permission.notification.status),
         camera: _map(await Permission.camera.status),
         batteryOptimizationIgnored: await Permission.ignoreBatteryOptimizations.isGranted,
+        preciseLocation: location == PermissionState.granted && await _location.isPrecise(),
+        locationServiceEnabled: await _location.isServiceEnabled(),
       );
     } catch (e) {
       throw PlatformFailure('Could not read permissions: $e');
+    }
+  }
+
+  Future<void> _refreshQuietly() async {
+    try {
+      await refresh();
+    } on Failure {
+      // The next resume or switch change reads it again.
     }
   }
 
@@ -73,9 +97,8 @@ class PermissionsRepository {
   Future<PermissionStatusModel> refresh() async {
     final current = await status();
     if (current != _last) {
-      final hadPrevious = _last != null;
       _last = current;
-      if (hadPrevious) _changes.add(current);
+      _changes.add(current);
     }
     return current;
   }
@@ -101,14 +124,16 @@ class PermissionsRepository {
 
   /// Opens the system screen for [screen] (`app | location | battery | notifications`).
   ///
-  /// `permission_handler` can only open the app's own settings page, so every
-  /// screen lands there except battery, which raises the exemption dialog.
+  /// `location` opens the phone's Location switch screen; battery raises the
+  /// exemption dialog; everything else lands on the app's own settings page
+  /// (where precise location and the permissions are changed).
   Future<void> openSettings(String screen) async {
     try {
       if (screen == 'battery') {
         await Permission.ignoreBatteryOptimizations.request();
         return;
       }
+      if (screen == 'location' && await _location.openLocationSettings()) return;
       if (!await openAppSettings()) {
         throw const UnsupportedFailure('Could not open the settings screen.');
       }
@@ -135,5 +160,8 @@ class PermissionsRepository {
         PermissionStatus.restricted => PermissionState.restricted,
       };
 
-  Future<void> dispose() => _changes.close();
+  Future<void> dispose() async {
+    await _serviceWatch?.cancel();
+    await _changes.close();
+  }
 }

@@ -1,10 +1,16 @@
-/// `bloc_test` coverage for `PermissionsCubit`: skips steps already granted,
-/// advances after a grant, offers settings for a permanently denied
-/// permission, adds the maker step only for known makers, and on finish
-/// records completion and restarts tracking.
+/// `bloc_test` coverage for the mandatory `PermissionsCubit`: it always shows
+/// the first required permission still missing, stays on a step that was
+/// refused, offers Settings for a permanently denied one, re-checks after
+/// Settings (also catching a revoked one), shows the maker hint only once per
+/// install and lets only that be skipped, and on finish records completion
+/// and restarts tracking. Approximate location and the Location switch are
+/// settings-only steps, and a live status change (Location switched on) moves
+/// on without a resume. Plus maker detection.
 ///
 /// Status: active — part of `flutter test`.
 library;
+
+import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dynaopsapp/features/device/data/device_info_model.dart';
@@ -27,88 +33,64 @@ class _MockCoordinator extends Mock implements TrackingCoordinator {}
 
 PermissionStatusModel status({
   PermissionState location = PermissionState.granted,
-  PermissionState background = PermissionState.denied,
+  PermissionState background = PermissionState.granted,
   PermissionState notifications = PermissionState.granted,
   bool battery = true,
+  bool precise = true,
+  bool locationOn = true,
 }) =>
     PermissionStatusModel(
       location: location,
       backgroundLocation: background,
       notifications: notifications,
-      camera: PermissionState.granted,
+      camera: PermissionState.denied,
       batteryOptimizationIgnored: battery,
+      preciseLocation: precise,
+      locationServiceEnabled: locationOn,
     );
+
+DeviceInfoModel device(String manufacturer) =>
+    DeviceInfoModel(appVersion: '1', manufacturer: manufacturer, model: 'x', androidSdk: 35);
 
 void main() {
   late _MockPermissions permissions;
-  late _MockDevice device;
+  late _MockDevice deviceRepo;
   late _MockCoordinator coordinator;
+  late StreamController<PermissionStatusModel> changes;
 
   setUpAll(() => registerFallbackValue(<AppPermission>[]));
 
   setUp(() {
     permissions = _MockPermissions();
-    device = _MockDevice();
+    deviceRepo = _MockDevice();
     coordinator = _MockCoordinator();
-    when(() => device.info()).thenAnswer(
-      (_) async => const DeviceInfoModel(appVersion: '1', manufacturer: 'Google', model: 'Pixel', androidSdk: 35),
-    );
+    changes = StreamController.broadcast();
+    when(() => permissions.changes).thenAnswer((_) => changes.stream);
+    when(() => deviceRepo.info()).thenAnswer((_) async => device('Google'));
+    when(() => permissions.walkthroughCompleted).thenReturn(false);
     when(() => permissions.setWalkthroughCompleted()).thenAnswer((_) async {});
     when(() => permissions.openSettings(any())).thenAnswer((_) async {});
     when(() => coordinator.retry()).thenAnswer((_) async => const TrackingStatusModel(state: TrackingState.running));
   });
 
-  PermissionsCubit build() => PermissionsCubit(permissions, device, coordinator);
+  tearDown(() => changes.close());
+
+  PermissionsCubit build() => PermissionsCubit(permissions, deviceRepo, coordinator);
 
   blocTest<PermissionsCubit, PermissionsState>(
-    'starts at the first missing step (background) on a stock phone',
-    setUp: () => when(() => permissions.status()).thenAnswer((_) async => status()),
-    build: build,
-    act: (cubit) => cubit.load(),
-    expect: () => [
-      const PermissionsStepShown(step: WalkthroughStep.backgroundLocation, index: 2, total: 4, needsSettings: false),
-    ],
-  );
-
-  blocTest<PermissionsCubit, PermissionsState>(
-    'granting the last missing step finishes and restarts tracking',
-    setUp: () {
-      when(() => permissions.status()).thenAnswer((_) async => status());
-      when(() => permissions.request(any()))
-          .thenAnswer((_) async => status(background: PermissionState.granted));
-    },
+    'approximate location → precise step, which opens app settings',
+    setUp: () => when(() => permissions.status()).thenAnswer((_) async => status(precise: false)),
     build: build,
     act: (cubit) async {
       await cubit.load();
-      when(() => permissions.status()).thenAnswer((_) async => status(background: PermissionState.granted));
       await cubit.allow();
     },
-    skip: 1,
     expect: () => [
+      const PermissionsStepShown(step: WalkthroughStep.preciseLocation, index: 2, total: 6, needsSettings: true),
       const PermissionsStepShown(
-        step: WalkthroughStep.backgroundLocation,
-        index: 2,
-        total: 4,
-        needsSettings: false,
-        busy: true,
-      ),
-      const PermissionsFinished(),
+          step: WalkthroughStep.preciseLocation, index: 2, total: 6, needsSettings: true, busy: true),
+      const PermissionsStepShown(step: WalkthroughStep.preciseLocation, index: 2, total: 6, needsSettings: true),
     ],
-    verify: (_) {
-      verify(() => permissions.setWalkthroughCompleted()).called(1);
-      verify(() => coordinator.retry()).called(1);
-    },
-  );
-
-  blocTest<PermissionsCubit, PermissionsState>(
-    'a permanently denied step offers settings instead of asking again',
-    setUp: () => when(() => permissions.status())
-        .thenAnswer((_) async => status(location: PermissionState.permanentlyDenied)),
-    build: build,
-    act: (cubit) async {
-      await cubit.load();
-      await cubit.allow();
-    },
     verify: (_) {
       verify(() => permissions.openSettings('app')).called(1);
       verifyNever(() => permissions.request(any()));
@@ -116,25 +98,169 @@ void main() {
   );
 
   blocTest<PermissionsCubit, PermissionsState>(
-    'Samsung phones get the maker step even when everything is granted',
-    setUp: () {
-      when(() => permissions.status()).thenAnswer((_) async => status(background: PermissionState.granted));
-      when(() => device.info()).thenAnswer(
-        (_) async => const DeviceInfoModel(appVersion: '1', manufacturer: 'samsung', model: 'A54', androidSdk: 34),
-      );
+    'Location switch off → its step opens the Location settings screen',
+    setUp: () => when(() => permissions.status()).thenAnswer((_) async => status(locationOn: false)),
+    build: build,
+    act: (cubit) async {
+      await cubit.load();
+      await cubit.allow();
     },
+    skip: 1,
+    expect: () => [
+      const PermissionsStepShown(
+          step: WalkthroughStep.locationService, index: 4, total: 6, needsSettings: true, busy: true),
+      const PermissionsStepShown(step: WalkthroughStep.locationService, index: 4, total: 6, needsSettings: true),
+    ],
+    verify: (_) => verify(() => permissions.openSettings('location')).called(1),
+  );
+
+  blocTest<PermissionsCubit, PermissionsState>(
+    'turning Location on from quick settings moves on without a resume',
+    setUp: () => when(() => permissions.status()).thenAnswer((_) async => status(locationOn: false)),
+    build: build,
+    act: (cubit) async {
+      await cubit.load();
+      when(() => permissions.status()).thenAnswer((_) async => status());
+      changes.add(status());
+      await pumpEventQueue();
+    },
+    expect: () => [
+      const PermissionsStepShown(step: WalkthroughStep.locationService, index: 4, total: 6, needsSettings: true),
+      const PermissionsFinished(),
+    ],
+  );
+
+  blocTest<PermissionsCubit, PermissionsState>(
+    'shows the first required permission still missing',
+    setUp: () => when(() => permissions.status())
+        .thenAnswer((_) async => status(background: PermissionState.denied, battery: false)),
     build: build,
     act: (cubit) => cubit.load(),
     expect: () => [
+      const PermissionsStepShown(step: WalkthroughStep.backgroundLocation, index: 3, total: 6, needsSettings: false),
+    ],
+  );
+
+  blocTest<PermissionsCubit, PermissionsState>(
+    'a refused permission keeps the rep on that step',
+    setUp: () {
+      when(() => permissions.status()).thenAnswer((_) async => status(notifications: PermissionState.denied));
+      when(() => permissions.request(any()))
+          .thenAnswer((_) async => status(notifications: PermissionState.denied));
+    },
+    build: build,
+    act: (cubit) async {
+      await cubit.load();
+      await cubit.allow();
+    },
+    expect: () => [
+      const PermissionsStepShown(step: WalkthroughStep.notifications, index: 5, total: 6, needsSettings: false),
+      const PermissionsStepShown(
+          step: WalkthroughStep.notifications, index: 5, total: 6, needsSettings: false, busy: true),
+      const PermissionsStepShown(step: WalkthroughStep.notifications, index: 5, total: 6, needsSettings: false),
+    ],
+    verify: (_) => verifyNever(() => permissions.setWalkthroughCompleted()),
+  );
+
+  blocTest<PermissionsCubit, PermissionsState>(
+    'granting the last missing permission finishes and restarts tracking',
+    setUp: () {
+      when(() => permissions.status()).thenAnswer((_) async => status(battery: false));
+      when(() => permissions.request(any())).thenAnswer((_) async => status());
+    },
+    build: build,
+    act: (cubit) async {
+      await cubit.load();
+      await cubit.allow();
+    },
+    skip: 2,
+    expect: () => [const PermissionsFinished()],
+    verify: (_) {
+      verify(() => permissions.setWalkthroughCompleted()).called(1);
+      verify(() => coordinator.retry()).called(1);
+    },
+  );
+
+  blocTest<PermissionsCubit, PermissionsState>(
+    'a permanently denied permission offers Settings instead of asking again',
+    setUp: () => when(() => permissions.status())
+        .thenAnswer((_) async => status(location: PermissionState.permanentlyDenied)),
+    build: build,
+    act: (cubit) async {
+      await cubit.load();
+      await cubit.allow();
+    },
+    expect: () => [
+      const PermissionsStepShown(step: WalkthroughStep.location, index: 1, total: 6, needsSettings: true),
+      const PermissionsStepShown(step: WalkthroughStep.location, index: 1, total: 6, needsSettings: true, busy: true),
+      const PermissionsStepShown(step: WalkthroughStep.location, index: 1, total: 6, needsSettings: true),
+    ],
+    verify: (_) {
+      verify(() => permissions.openSettings('app')).called(1);
+      verifyNever(() => permissions.request(any()));
+    },
+  );
+
+  blocTest<PermissionsCubit, PermissionsState>(
+    'recheck after Settings catches a permission revoked meanwhile',
+    setUp: () => when(() => permissions.status()).thenAnswer((_) async => status(battery: false)),
+    build: build,
+    act: (cubit) async {
+      await cubit.load();
+      when(() => permissions.status()).thenAnswer(
+        (_) async => status(location: PermissionState.denied, battery: false),
+      );
+      await cubit.recheck();
+    },
+    expect: () => [
+      const PermissionsStepShown(step: WalkthroughStep.battery, index: 6, total: 6, needsSettings: false),
+      const PermissionsStepShown(step: WalkthroughStep.location, index: 1, total: 6, needsSettings: false),
+    ],
+  );
+
+  blocTest<PermissionsCubit, PermissionsState>(
+    'the maker hint comes after the required steps and is the only skippable one',
+    setUp: () {
+      when(() => permissions.status()).thenAnswer((_) async => status());
+      when(() => deviceRepo.info()).thenAnswer((_) async => device('samsung'));
+    },
+    build: build,
+    act: (cubit) async {
+      await cubit.load();
+      await cubit.skipHint();
+    },
+    expect: () => [
       const PermissionsStepShown(
         step: WalkthroughStep.oem,
-        index: 5,
-        total: 5,
+        index: 7,
+        total: 7,
         needsSettings: false,
         oem: OemBrand.samsung,
       ),
+      const PermissionsFinished(),
     ],
   );
+
+  blocTest<PermissionsCubit, PermissionsState>(
+    'the maker hint is not shown again once the walkthrough was completed',
+    setUp: () {
+      when(() => permissions.status()).thenAnswer((_) async => status());
+      when(() => permissions.walkthroughCompleted).thenReturn(true);
+      when(() => deviceRepo.info()).thenAnswer((_) async => device('Xiaomi'));
+    },
+    build: build,
+    act: (cubit) => cubit.load(),
+    expect: () => [const PermissionsFinished()],
+  );
+
+  test('trackingReady needs precise location all the time, Location on, notifications and battery', () {
+    expect(status().trackingReady, true);
+    expect(status(precise: false).trackingReady, false);
+    expect(status(locationOn: false).trackingReady, false);
+    expect(status(background: PermissionState.denied).trackingReady, false);
+    expect(status(notifications: PermissionState.denied).trackingReady, false);
+    expect(status(battery: false).trackingReady, false);
+  });
 
   test('maker detection', () {
     expect(OemBrand.fromManufacturer('Redmi'), OemBrand.xiaomi);

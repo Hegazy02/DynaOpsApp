@@ -13,7 +13,15 @@ import 'package:equatable/equatable.dart';
 import '../data/oem_brand.dart';
 
 /// Order of the walkthrough (§13).
-enum WalkthroughStep { location, backgroundLocation, notifications, battery, oem }
+enum WalkthroughStep {
+  location,
+  preciseLocation,
+  backgroundLocation,
+  locationService,
+  notifications,
+  battery,
+  oem,
+}
 
 sealed class PermissionsState extends Equatable {
   const PermissionsState();
@@ -41,7 +49,8 @@ final class PermissionsStepShown extends PermissionsState {
   final int index;
   final int total;
 
-  /// The permission is permanently denied: only the settings screen can fix it.
+  /// Only a settings screen can fix it: the permission is permanently denied,
+  /// or the step is precise location / the phone's Location switch.
   final bool needsSettings;
   final OemBrand? oem;
   final bool busy;

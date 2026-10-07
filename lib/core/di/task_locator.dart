@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/auth/data/session_repository.dart';
 import '../../features/connectivity/data/connectivity_repository.dart';
 import '../../features/permissions/data/permissions_repository.dart';
+import '../../features/request_inspector/data/request_log_dao.dart';
 import '../../features/sync/data/location_upload_api.dart';
 import '../../features/sync/data/location_uploader.dart';
 import '../../features/sync/data/sync_meta_dao.dart';
@@ -57,9 +58,16 @@ Future<TrackingEngine> setupTaskLocator(AppConfig config) async {
     ..registerSingleton(PrefsStore(await SharedPreferences.getInstance()))
     // Analytics stays in the UI isolate: the client is never initialised here.
     ..registerSingleton(SessionRepository(SecureStore(const FlutterSecureStorage()), AnalyticsClient(config), logger))
-    ..registerLazySingleton<Dio>(() => createDioClient(g(), g()))
+    ..registerLazySingleton<Dio>(
+      () => createDioClient(
+        g(),
+        g(),
+        requestLog: config.requestInspector ? RequestLogDao(database.db) : null,
+        source: 'service',
+      ),
+    )
     ..registerLazySingleton(() => ConnectivityRepository(Connectivity(), g(), g()))
-    ..registerLazySingleton(() => PermissionsRepository(g()))
+    ..registerLazySingleton(() => PermissionsRepository(g(), g()))
     ..registerLazySingleton<LocationSource>(GeolocatorLocationSource.new)
     ..registerLazySingleton(() => LocationRepository(g(), g()))
     ..registerLazySingleton(() => TrackingPolicyRepository(TrackingApi(g()), g(), g()))

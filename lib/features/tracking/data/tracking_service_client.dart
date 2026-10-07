@@ -32,7 +32,11 @@ abstract interface class TrackingServiceClient {
 }
 
 class ForegroundTaskServiceClient implements TrackingServiceClient {
-  ForegroundTaskServiceClient({required String channelName, required String channelDescription}) {
+  ForegroundTaskServiceClient({
+    required String channelName,
+    required String channelDescription,
+    required Duration tickInterval,
+  }) {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'dynaops_tracking',
@@ -42,8 +46,8 @@ class ForegroundTaskServiceClient implements TrackingServiceClient {
       ),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: false),
       foregroundTaskOptions: ForegroundTaskOptions(
-        // The engine's tick: watchdog, policy, shift edges, sync, retention.
-        eventAction: ForegroundTaskEventAction.repeat(60 * 1000),
+        // The engine's heartbeat tick: heartbeat ping, upload, watchdog, policy, shift edges.
+        eventAction: ForegroundTaskEventAction.repeat(tickInterval.inMilliseconds),
         autoRunOnBoot: true,
         autoRunOnMyPackageReplaced: true,
         allowWakeLock: true,

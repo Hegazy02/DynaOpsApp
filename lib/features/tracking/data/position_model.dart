@@ -47,6 +47,17 @@ class PositionModel extends Equatable {
         isMocked: isMocked,
       );
 
+  /// Same fix with [speed] and [heading] replaced, nulls included.
+  PositionModel withVelocity({required double? speed, required double? heading}) => PositionModel(
+        latitude: latitude,
+        longitude: longitude,
+        accuracy: accuracy,
+        timestamp: timestamp,
+        speed: speed,
+        heading: heading,
+        isMocked: isMocked,
+      );
+
   @override
   List<Object?> get props => [latitude, longitude, accuracy, timestamp, speed, heading, isMocked];
 }

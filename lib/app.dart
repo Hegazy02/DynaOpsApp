@@ -1,7 +1,9 @@
 /// Root widget `DynaOpsApp`: `MaterialApp.router` wired to the go_router from
 /// `core/router`, the light/dark themes from `core/theme`, the generated
 /// `AppLocalizations`, and the one root-level Cubit (`LocaleCubit`) that
-/// switches the native locale to the language picked in Angular.
+/// switches the native locale to the language picked in Angular. It owns the
+/// `PermissionGate` that keeps the app on the walkthrough until tracking has
+/// every permission it needs.
 ///
 /// Why it exists: keeps `main.dart` to bootstrapping only; feature Cubits are
 /// provided per route, never here (flutter-cubit-architecture).
@@ -14,6 +16,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/di/service_locator.dart';
 import 'core/router/app_router.dart';
+import 'core/router/permission_gate.dart';
 import 'core/theme/app_theme.dart';
 import 'features/locale/cubit/locale_cubit.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -26,11 +29,13 @@ class DynaOpsApp extends StatefulWidget {
 }
 
 class _DynaOpsAppState extends State<DynaOpsApp> {
-  final GoRouter _router = createAppRouter();
+  final PermissionGate _gate = PermissionGate(getIt());
+  late final GoRouter _router = createAppRouter(_gate);
 
   @override
   void dispose() {
     _router.dispose();
+    _gate.dispose();
     super.dispose();
   }
 

@@ -56,6 +56,8 @@ const _permissions = PermissionStatusModel(
   notifications: PermissionState.denied,
   camera: PermissionState.granted,
   batteryOptimizationIgnored: false,
+  preciseLocation: true,
+  locationServiceEnabled: true,
 );
 
 void main() {

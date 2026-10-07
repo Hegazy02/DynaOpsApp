@@ -44,6 +44,23 @@ class AppDatabase {
       'CREATE INDEX idx_points_user_state_time ON location_points (user_id, state, captured_at)',
       'CREATE TABLE sync_meta (key TEXT PRIMARY KEY, value TEXT)',
     ],
+    [
+      '''
+      CREATE TABLE request_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT NOT NULL,
+        method TEXT NOT NULL,
+        url TEXT NOT NULL,
+        request_headers TEXT,
+        request_body TEXT,
+        status_code INTEGER,
+        response_body TEXT,
+        error TEXT,
+        started_at INTEGER NOT NULL,
+        duration_ms INTEGER NOT NULL
+      )
+      ''',
+    ],
   ];
 
   static int get schemaVersion => migrations.length;

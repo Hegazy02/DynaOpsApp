@@ -1,16 +1,21 @@
-/// `PermissionWalkthroughScreen`: the native, localised walkthrough (§13)
-/// — one `PermissionStepCard` per step with progress, the Play-Store
-/// background-location disclosure, maker-specific guidance, and a link to
-/// diagnostics. Re-checks when the rep returns from the settings screen and
-/// closes itself when the walkthrough finishes.
+/// `PermissionWalkthroughScreen`: the mandatory, localised walkthrough (§13)
+/// — one `PermissionStepCard` per step with progress, a note that the app
+/// needs all of them, the Play-Store background-location disclosure,
+/// maker-specific guidance, and a link to diagnostics. Required steps have no
+/// "Next" and no back arrow; system back leaves the app while one is missing.
+/// Re-checks when the rep returns from Settings (and the Cubit on every status
+/// change, e.g. the Location switch) and closes itself (to the shell) when
+/// everything is in place.
 ///
 /// Why it exists: Android only lets an app ask for "all the time" location
 /// and battery exemption with an explanation first; Angular cannot do this.
-/// Status: used — mounted on `/permissions` by `app_router.dart`, opened from
-/// `ShellScreen` (prompt or `app.openNativeScreen`).
+/// Status: used — mounted on `/permissions`; the router's `PermissionGate`
+/// sends the rep here whenever a required permission is missing, and Angular
+/// can open it with `app.openNativeScreen`.
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -45,6 +50,18 @@ class _PermissionWalkthroughScreenState extends State<PermissionWalkthroughScree
 
   void _close(BuildContext context) => context.canPop() ? context.pop() : context.go('/');
 
+  /// Back can never get around the walkthrough: while a permission is missing
+  /// it leaves the app; once everything is granted it closes the screen.
+  void _onBack(BuildContext context) {
+    final state = context.read<PermissionsCubit>().state;
+    if (state is PermissionsFinished ||
+        (state is PermissionsStepShown && state.step == WalkthroughStep.oem)) {
+      _close(context);
+    } else {
+      SystemNavigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -52,15 +69,25 @@ class _PermissionWalkthroughScreenState extends State<PermissionWalkthroughScree
       listener: (context, state) {
         if (state is PermissionsFinished) _close(context);
       },
-      child: Scaffold(
-        appBar: AppBar(title: Text(l10n.permissionsTitle)),
-        body: SafeArea(
-          child: BlocBuilder<PermissionsCubit, PermissionsState>(
-            builder: (context, state) => switch (state) {
-              PermissionsLoading() || PermissionsFinished() => const LoadingOverlay(),
-              PermissionsStepShown() => _StepView(state: state),
-            },
-          ),
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _onBack(context);
+        },
+        child: _scaffold(l10n),
+      ),
+    );
+  }
+
+  Widget _scaffold(AppLocalizations l10n) {
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.permissionsTitle), automaticallyImplyLeading: false),
+      body: SafeArea(
+        child: BlocBuilder<PermissionsCubit, PermissionsState>(
+          builder: (context, state) => switch (state) {
+            PermissionsLoading() || PermissionsFinished() => const LoadingOverlay(),
+            PermissionsStepShown() => _StepView(state: state),
+          },
         ),
       ),
     );
@@ -76,7 +103,7 @@ class _StepView extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final cubit = context.read<PermissionsCubit>();
     final (icon, title, body) = _content(l10n);
-    final isLast = state.index == state.total;
+    final isHint = state.step == WalkthroughStep.oem;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsetsDirectional.all(24),
@@ -85,17 +112,26 @@ class _StepView extends StatelessWidget {
           child: Column(
             children: [
               Text(l10n.permissionsStepCounter(state.index, state.total)),
+              const SizedBox(height: 8),
+              Text(
+                l10n.permissionsRequiredNote,
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 24),
               PermissionStepCard(
                 icon: icon,
                 title: title,
                 body: body,
-                primaryLabel: state.needsSettings || state.step == WalkthroughStep.oem
-                    ? l10n.permissionOpenSettings
-                    : l10n.permissionAllow,
+                primaryLabel: switch (state.step) {
+                  WalkthroughStep.locationService => l10n.permissionTurnOnLocation,
+                  _ when state.needsSettings || isHint => l10n.permissionOpenSettings,
+                  _ => l10n.permissionAllow,
+                },
                 onPrimary: cubit.allow,
-                nextLabel: isLast ? l10n.permissionDone : l10n.permissionNext,
-                onNext: cubit.next,
+                // Only the maker hint can be skipped; the required steps cannot.
+                nextLabel: isHint ? l10n.permissionDone : null,
+                onNext: isHint ? cubit.skipHint : null,
                 busy: state.busy,
               ),
               const SizedBox(height: 24),
@@ -109,8 +145,12 @@ class _StepView extends StatelessWidget {
 
   (IconData, String, String) _content(AppLocalizations l10n) => switch (state.step) {
         WalkthroughStep.location => (Icons.location_on_outlined, l10n.stepLocationTitle, l10n.stepLocationBody),
+        WalkthroughStep.preciseLocation =>
+          (Icons.my_location_outlined, l10n.stepPreciseTitle, l10n.stepPreciseBody),
         WalkthroughStep.backgroundLocation =>
           (Icons.share_location_outlined, l10n.stepBackgroundTitle, l10n.stepBackgroundBody),
+        WalkthroughStep.locationService =>
+          (Icons.location_off_outlined, l10n.stepLocationServiceTitle, l10n.stepLocationServiceBody),
         WalkthroughStep.notifications =>
           (Icons.notifications_outlined, l10n.stepNotificationsTitle, l10n.stepNotificationsBody),
         WalkthroughStep.battery => (Icons.battery_saver_outlined, l10n.stepBatteryTitle, l10n.stepBatteryBody),

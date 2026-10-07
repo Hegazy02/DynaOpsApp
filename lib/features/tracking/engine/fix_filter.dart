@@ -1,11 +1,10 @@
-/// `FixFilter`: cleans raw positions before they are stored (§8.2) — drops
-/// fixes with poor accuracy, exact duplicates and impossible jumps (counting
-/// each reason for diagnostics), and derives speed/heading from the previous
-/// fix when the receiver reported none (short gaps only).
+/// `FixFilter`: cleans raw GPS samples before `PingSampler` sees them (§8.2) —
+/// drops fixes with poor accuracy, exact duplicates and impossible jumps
+/// (counting each reason for diagnostics) — plus the distance/bearing helpers.
+/// It never invents a speed: `PingSampler` measures speed per ping window.
 ///
-/// Why it exists: bad fixes waste uploads and draw false routes; the server
-/// stores speed, and Android often omits it when GPS is duty-cycled.
-/// Status: used — by `TrackingEngine` for every fix; tested in
+/// Why it exists: bad fixes draw false routes and corrupt window speeds.
+/// Status: used — by `TrackingEngine` for every sample; tested in
 /// `test/features/tracking/engine/fix_filter_test.dart`.
 library;
 
@@ -21,9 +20,6 @@ class FixFilter {
   /// ~250 km/h: anything faster between two fixes is a GPS jump.
   final double maxSpeedMps;
 
-  static const _maxDerivationGap = Duration(minutes: 2);
-  static const _minDerivationMeters = 10.0;
-
   PositionModel? _last;
   final Map<String, int> rejected = {};
 
@@ -37,26 +33,11 @@ class FixFilter {
       final meters = distanceMeters(last, next);
       if (meters / seconds > maxSpeedMps) return _reject('jump');
     }
-    final enriched = _deriveVelocity(next, last);
-    _last = enriched;
-    return enriched;
+    _last = next;
+    return next;
   }
 
   void reset() => _last = null;
-
-  PositionModel _deriveVelocity(PositionModel next, PositionModel? last) {
-    if (last == null || (next.speed != null && next.heading != null)) return next;
-    final gap = next.timestamp.difference(last.timestamp);
-    if (gap > _maxDerivationGap) return next;
-    final meters = distanceMeters(last, next);
-    if (meters < math.max(_minDerivationMeters, next.accuracy)) {
-      return next.copyWith(speed: next.speed ?? 0);
-    }
-    return next.copyWith(
-      speed: next.speed ?? meters / (gap.inMilliseconds / 1000),
-      heading: next.heading ?? bearingDegrees(last, next),
-    );
-  }
 
   PositionModel? _reject(String reason) {
     rejected[reason] = (rejected[reason] ?? 0) + 1;

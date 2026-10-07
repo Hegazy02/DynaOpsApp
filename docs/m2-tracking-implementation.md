@@ -83,12 +83,12 @@ The layering follows the project skills. Plugins live only in the data layer, an
 | File | What it does |
 |---|---|
 | `core/database/app_database.dart` | Opens `dynaops.db` (WAL) and applies an ordered list of migrations, using SQLite `user_version` as the schema version. v1 creates `location_points` (index on `user_id, state, captured_at`) and `sync_meta`. |
-| `features/tracking/data/location_points_dao.dart` | All SQL for the points store: `insert` (duplicate ids ignored), `claimBatch` (atomic: pending → uploading under a batch id), `markSynced`, `releaseBatch` (back to pending, counts an attempt, dead-letters after the max), `failBatch` (retryable or not), `resetUploading` (crash recovery), `requeueFailed`, `counts`, `latest`, `purge`. **Every query is scoped to one `userId`.** |
-| `features/sync/data/sync_meta_dao.dart` | Key/value rows shared by both isolates: last upload, last error, policy snapshot, policy fetch time, service-running flag, last purge. Used instead of `shared_preferences`, which caches separately in each isolate. |
+| `features/tracking/data/location_points_dao.dart` | All SQL for the points store: `insert` (duplicate ids ignored), `claimBatch` (atomic: pending → uploading under a batch id), `markSynced`, `releaseBatch` (back to pending, counts an attempt, dead-letters after the max), `failBatch` (retryable or not), `resetUploading` (crash recovery), `requeueFailed`, `deleteSynced` (after each accepted batch; keeps the user's newest row), `queued`, `counts`, `latest`. **Every query is scoped to one `userId`.** |
+| `features/sync/data/sync_meta_dao.dart` | Key/value rows shared by both isolates: last upload, last error, policy snapshot, policy fetch time, service-running flag. Used instead of `shared_preferences`, which caches separately in each isolate. |
 
 **Row states:** `pending → uploading → synced`. A row can also go `uploading → pending` (transient failure) or `uploading → failed` (rejected, or too many attempts).
 
-**Retention (§9):** once a day, `synced` rows older than 7 days are deleted, then the oldest `synced` rows beyond 200 000. Rows that are `pending` or `failed` are never deleted automatically.
+**Retention (§9):** no location history is kept on the phone. Right after each accepted batch, `SyncManager` deletes the user's `synced` rows except their newest row, which `tracking.latest` may still answer from. Because that delete covers every `synced` row of the user, rows left behind by a crash between "mark synced" and "delete" go with the next accepted batch, so there is no separate daily cleanup. Rows that are `pending` or `failed` are never deleted automatically.
 
 ### 3.2 Tracking data layer
 
@@ -102,7 +102,7 @@ The layering follows the project skills. Plugins live only in the data layer, an
 | `tracking_api.dart` | Raw `GET RepDashboard`; returns the envelope's `data`. |
 | `tracking_policy_repository.dart` | Policy snapshot in `sync_meta` (works offline), refreshed from the API when stale (1 h) or on demand. With no snapshot it falls back to the server's own default: enabled, Route mode. |
 | `location_repository.dart` | Store-first writes, counts, and `latestFix()` for `tracking.latest`: a stored fix if it is younger than `maxAge`, otherwise a fresh reading (15 s limit; Angular waits 20 s). |
-| `tracking_service_client.dart` | The UI isolate's wrapper around `flutter_foreground_task`. The service has type `location`, uses `stopWithTask=false`, restarts on boot and after an app update, and ticks every 60 s. |
+| `tracking_service_client.dart` | The UI isolate's wrapper around `flutter_foreground_task`. The service has type `location`, uses `stopWithTask=false`, restarts on boot and after an app update, and ticks every `HEARTBEAT_SECONDS` (30 s). |
 | `tracking_repository.dart` | UI side: starts the service only when foreground location is granted and a session exists, forwards commands, keeps the latest status (from the service, or computed locally while it is stopped), relays fixes, `stopAndFlush()`, and detects a previous Force Stop. |
 
 ### 3.3 Tracking engine (service isolate)
@@ -130,13 +130,13 @@ An **expired token does not stop collection** (D6). `userId` is kept, the state 
 
 - **Start:** mark the service as running, load the session, recover rows stuck in `uploading`, refresh the policy if stale, watch GPS on/off and the network, evaluate, then try a sync.
 - **Evaluate:** apply the rule → check foreground location permission (`permission_required` / `permission_denied`) → check GPS is on (`error` + `LOCATION_DISABLED`) → make sure the position stream runs → publish the status and update the notification when it changes.
-- **Each fix:** filter → **store first** → publish `tracking.location` → mark `running` → trigger a sync if ≥ one batch (100) is pending.
-- **Every 60 s tick:**
+- **Each GPS sample (every 1 s, `GPS_SAMPLE_SECONDS`):** filter → `PingSampler`. By default no sample becomes a ping except the first one after (re)start; pings come from the heartbeat, so **one point every 30 s**. Setting `DISTANCE_FILTER_M` (e.g. 25, the old tracker's rule) also makes a ping of any sample that moved that far since the last one. A ping is **stored first** → published as `tracking.location` → state `running` → a sync is triggered if ≥ one batch (100) is pending.
+- **Every heartbeat tick (30 s, `HEARTBEAT_SECONDS`):**
   - Watchdog: no fix for 5 min → restart the stream once; still nothing → `error` + `LOCATION_UNAVAILABLE`.
+  - Heartbeat ping: the newest sample, if it is under 15 s old and no ping went out in the last 15 s.
   - Refresh the policy hourly and re-evaluate (shift edges, a revoked or re-granted permission).
   - Publish the pending count, last fix and last upload.
   - Trigger a sync.
-  - Run retention once a day.
 - **Commands from the UI:** `sessionChanged`, `syncNow`, `refreshPolicy`, `permissionsChanged`, `publishStatus`, `flush`. `flush` stops collecting, runs one upload cycle and replies with the number uploaded; it is used for sign-out and user swap.
 
 **Fix filter:**
@@ -145,7 +145,9 @@ An **expired token does not stop collection** (D6). `userId` is kept, the state 
 - Drops duplicate or out-of-order timestamps.
 - Drops jumps implying more than 70 m/s (about 250 km/h).
 - Counts every rejection by reason.
-- When the receiver reports no speed or heading, derives them from the previous fix, but only for gaps of 2 minutes or less. Movement within GPS noise (max(10 m, accuracy)) counts as standing still (speed 0).
+- Never invents a speed.
+
+**Ping speed (`PingSampler`):** measured over the window since the previous ping, not taken from one instant reading. It is the larger of the mean Doppler speed of the window's samples and the path length ÷ window time; the path only grows by steps larger than max(10 m, fix accuracy). Below 0.5 m/s it is reported as 0 (GPS drift while parked). Heading is the receiver's course when it reads ≥ 1 m/s, else the bearing from the previous ping. This fixes the old tracker's zero speeds: an instant reading of 0 at a light or turn, Android fixes with `speed = 0` and no Doppler solution, and parked drift.
 
 ### 3.4 Sync
 
@@ -165,7 +167,7 @@ An **expired token does not stop collection** (D6). `userId` is kept, the state 
 
 | Server result | What happens |
 |---|---|
-| 2xx | rows `synced`; reset the backoff; save `last_success_at` |
+| 2xx | rows `synced`, then deleted (all but the user's newest row); reset the backoff; save `last_success_at` |
 | 400 / 413 / 422 | rows `failed`, not retryable; continue with the next batch |
 | 401 | rows back to `pending` (no attempt counted); session marked expired; stop |
 | 403 | rows `failed` but retryable (`sync.retryFailed` brings them back); stop |
@@ -182,7 +184,7 @@ An **expired token does not stop collection** (D6). `userId` is kept, the state 
 | `auth.setSession`, same user | Adopt (no-op if identical) → make sure the service runs. |
 | `auth.setSession`, **different user** (§7.1) | Stop and flush the previous user's fixes **with their own token** → forget their policy → adopt the new session → start. The previous user's unsent rows stay attributed to them. |
 | `auth.signOut{deliberate:true}` | Stop collecting → flush (≤ 20 s) → clear the session → return the uploaded count. |
-| 401 / token expiry | Token dropped, `userId` kept; the service re-reads the session; collection continues; uploads pause; notification says "Sign in to DynaOps to resume uploads". |
+| 401 / token expiry | Token dropped, `userId` kept; the service re-reads the session; collection continues; uploads pause. No "sign in to resume uploads" message is shown (removed 2026-10-07); the notification keeps its normal text. |
 | Location permission re-granted | Restart tracking automatically. |
 | App resumed | Refresh the policy and status if the service runs; otherwise try to start it. |
 
@@ -237,7 +239,7 @@ Events: `tracking.statusChanged`, `tracking.location`, `sync.started | progress 
 
 ### 3.8 Other Flutter changes
 
-- **`core/config/app_config.dart`:** new defines: `PING_TIMESTAMPS` (`local` default / `utc`), `TRACKING_INTERVAL_SECONDS` (5), `UPLOAD_BATCH_SIZE` (100).
+- **`core/config/app_config.dart`:** new defines: `PING_TIMESTAMPS` (`local` default / `utc`), `GPS_SAMPLE_SECONDS` (1), `HEARTBEAT_SECONDS` (30), `DISTANCE_FILTER_M` (0 = off), `UPLOAD_BATCH_SIZE` (100).
 - **`core/logging/app_logger.dart`:**
   - `onLine` forwards each service log line to the UI.
   - `external()` records those lines on the UI side.
@@ -307,7 +309,7 @@ Everything new runs **only inside the shell**. In the browser/PWA nothing change
 | `core/native/native-tracking.service.ts` (new) | Signals: `trackingStatus`, `syncStatus`, `online`, `pending`, `needsPermissionFix`, `sessionExpired`. Re-reads status on ready, `app.resumed`, sync and auth events. Methods: `fixPermissions()` (request location / background / notifications → open settings if location or background is permanently denied → `tracking.start({reason:'retryAfterPermission'})`), `syncNow()`, `retryFailed()`. |
 | `shared/services/device-location.service.ts` | In the shell, calls `tracking.latest` (maxAge 60 s, 20 s timeout). On `UNSUPPORTED` it falls back to the browser API. Error mapping: permission → `denied`; the rest → `unavailable`. The result shape is unchanged, so `VisitExecutionService` and the capture screen need no change. |
 | `feature-pages/field-sales/services/day-stamps.service.ts` | `deviceStartRequest()`: start-day sends `latitude`/`longitude` from the shell fix. `from` is left empty because it is a place name. Without a fix it sends `{}` and the day still starts. |
-| `rep-journey/components/native-tracking-strip/` (new) | Status chip, reason or error note, pending badge, "sign in to resume uploads", "Fix tracking permissions", offline banner. No stop control. |
+| `rep-journey/components/native-tracking-strip/` (new) | Pending badge, "Fix tracking permissions", offline banner. No stop control. (The status chip and the "sign in to resume uploads" note were removed on 2026-10-07.) |
 | `rep-journey.component.ts/.html` | Shows the strip only in the shell; reloads journey and dashboard on `app.resumed`; start-day fetches the fix first (guarded against a double press). |
 | `assets/i18n/en.json`, `ar.json` | `native_bridge.tracking` block: 7 states, 4 reasons, 4 error codes, banner and button texts. |
 | specs | `native-tracking.service.spec.ts`, native cases in `device-location.service.spec.ts` (type-checked; Karma is broken). |
@@ -323,7 +325,7 @@ Everything new runs **only inside the shell**. In the browser/PWA nothing change
 | Area | Test file(s) |
 |---|---|
 | Database schema | `test/core/database/app_database_test.dart` |
-| Points store SQL (per-user isolation, claiming, dead-letter, requeue, recovery, retention) | `test/features/tracking/data/location_points_dao_test.dart` |
+| Points store SQL (per-user isolation, claiming, dead-letter, requeue, recovery, deleting synced rows) | `test/features/tracking/data/location_points_dao_test.dart` |
 | Wire ping format, row/message round trips | `test/features/tracking/data/location_fix_model_test.dart` |
 | Auto-start rule incl. midnight shifts | `test/features/tracking/engine/tracking_policy_test.dart` |
 | Fix filter | `test/features/tracking/engine/fix_filter_test.dart` |

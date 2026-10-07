@@ -1,7 +1,8 @@
 /// Tests for `TrackingEngine` with every dependency mocked and a controllable
 /// clock: signed out and disabled-by-admin stop the service, missing
 /// permission and location-off states, store-first collection publishing the
-/// fix and `running`, expired session still collecting, the watchdog restart
+/// fix and `running`, only pings stored (heartbeat on tick), expired session
+/// still collecting, the watchdog restart
 /// then `LOCATION_UNAVAILABLE`, and the sign-out flush reply.
 ///
 /// Status: active — part of `flutter test`.
@@ -60,6 +61,8 @@ const _granted = PermissionStatusModel(
   notifications: PermissionState.granted,
   camera: PermissionState.granted,
   batteryOptimizationIgnored: true,
+  preciseLocation: true,
+  locationServiceEnabled: true,
 );
 
 void main() {
@@ -150,8 +153,6 @@ void main() {
       ),
     );
     when(() => points.counts(any())).thenAnswer((_) async => const PointCounts(pending: 1, failed: 0));
-    when(() => points.purge(syncedBefore: any(named: 'syncedBefore'), maxRows: any(named: 'maxRows')))
-        .thenAnswer((_) async => 0);
     when(() => sync.recover()).thenAnswer((_) async {});
     when(() => sync.runCycle(manual: any(named: 'manual')))
         .thenAnswer((_) async => const SyncCycleResult(ran: true, processed: 4));
@@ -212,6 +213,22 @@ void main() {
     verify(() => locations.store(any(), userId: 'u1')).called(1);
     verify(() => port.publishLocation(any())).called(1);
     expect(published.last.state, TrackingState.running);
+  });
+
+  test('stores only pings: small moves wait, the heartbeat tick records the newest sample', () async {
+    final e = engine();
+    await e.start();
+    positions.add(PositionModel(latitude: 30, longitude: 31, accuracy: 5, timestamp: now));
+    await pumpEventQueue();
+    positions.add(PositionModel(latitude: 30.00005, longitude: 31, accuracy: 5, timestamp: now.add(const Duration(seconds: 20))));
+    await pumpEventQueue();
+    verify(() => locations.store(any(), userId: 'u1')).called(1); // ≈5 m: no movement ping
+
+    now = now.add(const Duration(seconds: 30));
+    await e.tick();
+    final stored = verify(() => locations.store(captureAny(), userId: 'u1')).captured.single as PositionModel;
+    expect(stored.latitude, 30.00005);
+    expect(stored.speed, 0);
   });
 
   test('an expired session keeps collecting with reason sessionExpired', () async {

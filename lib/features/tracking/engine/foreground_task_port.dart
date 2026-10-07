@@ -72,7 +72,6 @@ class ForegroundTaskPort implements TrackingPort {
       TrackingStatusModel(errorCode: TrackingErrorCode.locationDisabled) => l10n.trackingNotificationLocationOff,
       TrackingStatusModel(state: TrackingState.permissionRequired || TrackingState.permissionDenied) =>
         l10n.trackingNotificationPermission,
-      TrackingStatusModel(reason: TrackingReason.sessionExpired) => l10n.trackingNotificationSignIn,
       TrackingStatusModel(reason: TrackingReason.outsideShift) => l10n.trackingNotificationOutsideShift,
       TrackingStatusModel(state: TrackingState.stopped) => l10n.trackingNotificationPaused,
       _ => l10n.trackingNotificationRunning,

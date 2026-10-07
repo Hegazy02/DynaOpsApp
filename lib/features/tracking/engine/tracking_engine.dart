@@ -1,10 +1,11 @@
 /// `TrackingEngine`: the state machine inside the tracking service (§8.2).
 /// Applies the auto-start rule (D8) to the stored session + policy, checks
-/// location permission and provider state, runs the position stream, filters
-/// and stores every fix first, publishes status/fixes, triggers sync, and on
-/// every 60 s tick runs the watchdog, policy refresh, shift edges and
-/// retention. Stops its own service after sign-out or when an admin disables
-/// tracking.
+/// location permission and provider state, runs the 1 s GPS sample stream
+/// through `FixFilter` and `PingSampler`, stores each ping first, publishes
+/// status/pings, triggers sync, and on every heartbeat tick (30 s) records the
+/// heartbeat ping — by default the only ping — and runs the watchdog, upload,
+/// policy refresh and shift edges. Stops its own service after sign-out or
+/// when an admin disables tracking. Uploaded rows are deleted by `SyncManager`.
 ///
 /// Why it exists: collection must keep running with no UI (locked phone,
 /// swiped from Recents, after reboot); this holds all of that logic behind a
@@ -33,6 +34,7 @@ import '../data/tracking_policy_repository.dart';
 import '../data/tracking_status_model.dart';
 import 'fix_filter.dart';
 import 'foreground_task_port.dart';
+import 'ping_sampler.dart';
 import 'task_protocol.dart';
 import 'tracking_policy.dart';
 
@@ -57,8 +59,6 @@ class TrackingEngine {
 
   /// No fix for this long while collecting → restart the stream once, then error.
   static const watchdogAfter = Duration(minutes: 5);
-  static const retentionDays = 7;
-  static const maxRows = 200000;
 
   final AppConfig _config;
   final SessionRepository _session;
@@ -74,6 +74,10 @@ class TrackingEngine {
   final AppLogger _logger;
   final FixFilter _filter;
   final DateTime Function() _now;
+  late final PingSampler _sampler = PingSampler(
+    minDistanceMeters: _config.distanceFilterMeters.toDouble(),
+    heartbeat: _config.heartbeatInterval,
+  );
 
   TrackingPolicyModel _policy = TrackingPolicyModel.serverDefault;
   TrackingStatusModel _status = const TrackingStatusModel(state: TrackingState.starting, backgroundService: true);
@@ -144,7 +148,8 @@ class TrackingEngine {
     );
   }
 
-  /// 60 s tick: watchdog, policy, shift edges, status numbers, sync, retention.
+  /// Heartbeat tick (`HEARTBEAT_SECONDS`): watchdog, heartbeat ping, policy,
+  /// shift edges, status numbers, sync.
   Future<void> tick() async {
     if (_stopping) return;
     final now = _now();
@@ -160,12 +165,14 @@ class TrackingEngine {
           return;
         }
       }
+      final userId = _collectingFor;
+      final heartbeat = _sampler.onHeartbeat(now);
+      if (userId != null && heartbeat != null) await _record(heartbeat, userId);
     }
     if (await _policies.isStale()) _policy = await _policies.refreshIfStale();
     await evaluate();
     await _publishNumbers();
     _triggerSync();
-    await _purgeDaily(now);
   }
 
   /// A command from the UI isolate (`TaskCommand`).
@@ -218,11 +225,12 @@ class TrackingEngine {
   void _startPositions(String userId) {
     unawaited(_positions?.cancel());
     _filter.reset();
+    _sampler.reset();
     _collectingFor = userId;
     _collectingSince = _now();
     _lastFixAt = null;
     _positions = _source
-        .positions(interval: _config.trackingInterval, distanceFilter: 0)
+        .positions(interval: _config.gpsSampleInterval, distanceFilter: 0)
         .listen(_onPosition, onError: _onPositionError, onDone: () => _positions = null);
   }
 
@@ -233,16 +241,24 @@ class TrackingEngine {
     _watchdogRestarted = false;
   }
 
+  /// Every GPS sample: cleaned, fed to the sampler, stored only when it
+  /// becomes a (movement) ping. Any accepted sample proves the GPS is alive.
   Future<void> _onPosition(PositionModel raw) async {
     final userId = _collectingFor;
     final accepted = _filter.accept(raw);
     if (userId == null || accepted == null) return;
+    _lastFixAt = _now();
+    _watchdogRestarted = false;
+    final ping = _sampler.add(accepted);
+    if (ping != null) await _record(ping, userId);
+    if (_status.state != TrackingState.running) await evaluate();
+  }
+
+  /// Store first, then publish; uploads early once a full batch is waiting.
+  Future<void> _record(PositionModel ping, String userId) async {
     try {
-      final fix = await _locations.store(accepted, userId: userId);
-      _lastFixAt = _now();
-      _watchdogRestarted = false;
+      final fix = await _locations.store(ping, userId: userId);
       _port.publishLocation(fix);
-      if (_status.state != TrackingState.running) await evaluate();
       final pending = (await _points.counts(userId)).pending;
       if (pending >= _config.uploadBatchSize) _triggerSync();
     } on Failure catch (f) {
@@ -252,6 +268,15 @@ class TrackingEngine {
 
   void _onPositionError(Object error) {
     _logger.warn('Position stream error: $error');
+    if (error is LocationFailure && error.disabled) {
+      // isLocationServiceEnabled() can say "on" while the fused provider says
+      // "off" (e.g. emulator with GPS off): re-evaluating now would restart the
+      // stream in a tight loop. Wait for a provider change or the next tick.
+      unawaited(_stopPositions().then(
+        (_) => _setStatus(state: TrackingState.error, errorCode: TrackingErrorCode.locationDisabled),
+      ));
+      return;
+    }
     unawaited(_stopPositions().then((_) => evaluate()));
   }
 
@@ -297,17 +322,6 @@ class TrackingEngine {
       _status = next;
       _port.publishStatus(next);
     }
-  }
-
-  Future<void> _purgeDaily(DateTime now) async {
-    final last = await _meta.getDate(SyncMetaKeys.lastPurgeAt);
-    if (last != null && now.difference(last) < const Duration(days: 1)) return;
-    final removed = await _points.purge(
-      syncedBefore: now.subtract(const Duration(days: retentionDays)),
-      maxRows: maxRows,
-    );
-    await _meta.setDate(SyncMetaKeys.lastPurgeAt, now);
-    if (removed > 0) _logger.info('Retention removed $removed synced fixes');
   }
 
   Future<PermissionStatusModel?> _safePermissions() async {

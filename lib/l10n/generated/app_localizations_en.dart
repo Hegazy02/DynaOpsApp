@@ -66,10 +66,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Outside your shift — tracking resumes when it starts';
 
   @override
-  String get trackingNotificationSignIn =>
-      'Sign in to DynaOps to resume uploads';
-
-  @override
   String get trackingNotificationPermission =>
       'Location permission needed — tap to open DynaOps';
 
@@ -98,6 +94,20 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get stepBackgroundBody =>
       'DynaOps collects your location even when the app is closed or not in use, during working time only, to record your route and visits for your supervisor. On the next screen choose \"Allow all the time\".';
+
+  @override
+  String get stepPreciseTitle => 'Turn on precise location';
+
+  @override
+  String get stepPreciseBody =>
+      'DynaOps has only your approximate location, which can be kilometres off, so your route cannot be recorded. In Settings open Permissions → Location and turn on \"Use precise location\".';
+
+  @override
+  String get stepLocationServiceTitle => 'Turn on location';
+
+  @override
+  String get stepLocationServiceBody =>
+      'Your phone\'s location is switched off, so DynaOps cannot record your route. Turn on Location to continue.';
 
   @override
   String get stepNotificationsTitle => 'Allow notifications';
@@ -141,6 +151,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get permissionOpenSettings => 'Open settings';
+
+  @override
+  String get permissionTurnOnLocation => 'Turn on location';
 
   @override
   String get permissionNext => 'Next';
@@ -261,4 +274,130 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get diagNoticeActionFailed => 'That did not work. Try again.';
+
+  @override
+  String get reqInspectorTitle => 'Request inspector';
+
+  @override
+  String get reqInspectorOpen => 'Open request inspector';
+
+  @override
+  String reqTabRequests(int count) {
+    return 'Requests ($count)';
+  }
+
+  @override
+  String reqTabQueue(int count) {
+    return 'Queue ($count)';
+  }
+
+  @override
+  String get reqEmpty => 'No requests recorded yet';
+
+  @override
+  String get reqQueueEmpty => 'Nothing waiting to upload';
+
+  @override
+  String get reqClear => 'Clear log';
+
+  @override
+  String get reqRefresh => 'Refresh';
+
+  @override
+  String get reqGeneral => 'General';
+
+  @override
+  String get reqUrl => 'URL';
+
+  @override
+  String get reqMethod => 'Method';
+
+  @override
+  String get reqStatus => 'Status';
+
+  @override
+  String get reqDuration => 'Duration';
+
+  @override
+  String reqDurationMs(int ms) {
+    return '$ms ms';
+  }
+
+  @override
+  String get reqTime => 'Time';
+
+  @override
+  String get reqSource => 'Sent from';
+
+  @override
+  String get reqSourceUi => 'App';
+
+  @override
+  String get reqSourceService => 'Tracking service';
+
+  @override
+  String reqPings(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pings',
+      one: '1 ping',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get reqRequestHeaders => 'Request headers';
+
+  @override
+  String get reqRequestBody => 'Payload';
+
+  @override
+  String get reqResponseBody => 'Response';
+
+  @override
+  String get reqNoBody => '(empty)';
+
+  @override
+  String get reqCopy => 'Copy';
+
+  @override
+  String get reqCopied => 'Copied';
+
+  @override
+  String get reqNoStatus => 'No response';
+
+  @override
+  String get reqCapturedAt => 'Captured';
+
+  @override
+  String get reqAccuracy => 'Accuracy';
+
+  @override
+  String get reqAttempts => 'Attempts';
+
+  @override
+  String get reqBatch => 'Batch';
+
+  @override
+  String get reqRetryable => 'Retryable';
+
+  @override
+  String get reqUploadRunning => 'Upload running';
+
+  @override
+  String get reqWirePayload => 'Will be sent as';
+
+  @override
+  String get reqNoticeSyncBusy => 'An upload is already running';
+
+  @override
+  String get reqNoticeCleared => 'Log cleared';
+
+  @override
+  String get reqLoadFailed => 'Couldn\'t read the request log';
+
+  @override
+  String get permissionsRequiredNote =>
+      'DynaOps needs all of these to work. You can use the app as soon as they are allowed.';
 }

@@ -1,6 +1,7 @@
 /// `get_it` registration for the UI isolate: core (config, logger, analytics,
 /// prefs, secure store, database, Dio) → repositories → engines (tracking
-/// coordinator, local sync manager) → bridge handlers → Cubit factories.
+/// coordinator, local sync manager) → bridge handlers → Cubit factories, and
+/// the request inspector (its log DAO feeds Dio when enabled).
 ///
 /// Why it exists: the single place dependencies are wired
 /// (flutter-service-locator-setup); nothing is constructed by hand elsewhere,
@@ -34,6 +35,9 @@ import '../../features/files/data/files_repository.dart';
 import '../../features/locale/cubit/locale_cubit.dart';
 import '../../features/permissions/cubit/permissions_cubit.dart';
 import '../../features/permissions/data/permissions_repository.dart';
+import '../../features/request_inspector/cubit/request_inspector_cubit.dart';
+import '../../features/request_inspector/data/request_inspector_repository.dart';
+import '../../features/request_inspector/data/request_log_dao.dart';
 import '../../features/shell/cubit/native_navigation_cubit.dart';
 import '../../features/shell/cubit/shell_cubit.dart';
 import '../../features/shell/data/external_link_repository.dart';
@@ -44,7 +48,6 @@ import '../../features/sync/data/location_uploader.dart';
 import '../../features/sync/data/sync_meta_dao.dart';
 import '../../features/sync/data/sync_repository.dart';
 import '../../features/sync/engine/sync_manager.dart';
-import '../../features/tracking/cubit/tracking_cubit.dart';
 import '../../features/tracking/data/location_points_dao.dart';
 import '../../features/tracking/data/location_repository.dart';
 import '../../features/tracking/data/location_source.dart';
@@ -79,6 +82,7 @@ Future<void> setupServiceLocator(AppConfig config) async {
   _registerShell();
   _registerLocale();
   _registerDiagnostics();
+  _registerRequestInspector(config);
 }
 
 void _registerCore(AppConfig config) {
@@ -93,7 +97,10 @@ void _registerCore(AppConfig config) {
     ..registerSingletonAsync<PrefsStore>(() async => PrefsStore(await SharedPreferences.getInstance()))
     ..registerSingletonAsync<AppDatabase>(AppDatabase.open)
     ..registerLazySingleton(() => SecureStore(const FlutterSecureStorage()))
-    ..registerLazySingleton<Dio>(() => createDioClient(getIt(), getIt()));
+    ..registerLazySingleton(() => RequestLogDao(getIt<AppDatabase>().db))
+    ..registerLazySingleton<Dio>(
+      () => createDioClient(getIt(), getIt(), requestLog: config.requestInspector ? getIt<RequestLogDao>() : null),
+    );
 }
 
 void _registerAuth() {
@@ -113,7 +120,7 @@ void _registerConnectivity() {
 
 void _registerPermissions() {
   getIt
-    ..registerLazySingleton(() => PermissionsRepository(getIt()))
+    ..registerLazySingleton(() => PermissionsRepository(getIt(), getIt()))
     ..registerFactory(() => PermissionsCubit(getIt(), getIt(), getIt()));
 }
 
@@ -136,6 +143,7 @@ void _registerTracking(AppConfig config) {
       () => ForegroundTaskServiceClient(
         channelName: deviceL10n.trackingChannelName,
         channelDescription: deviceL10n.trackingChannelDescription,
+        tickInterval: config.heartbeatInterval,
       ),
     )
     ..registerLazySingleton<LocationSource>(GeolocatorLocationSource.new)
@@ -171,8 +179,7 @@ void _registerTracking(AppConfig config) {
         ),
       ),
     )
-    ..registerLazySingleton(() => TrackingCoordinator(getIt(), getIt(), getIt(), getIt(), getIt(), getIt()))
-    ..registerFactory(() => TrackingCubit(getIt(), getIt(), getIt()));
+    ..registerLazySingleton(() => TrackingCoordinator(getIt(), getIt(), getIt(), getIt(), getIt(), getIt()));
 }
 
 void _registerBridge() {
@@ -211,4 +218,18 @@ void _registerDiagnostics() {
   getIt.registerFactory(
     () => DiagnosticsCubit(getIt(), getIt(), getIt(), getIt(), getIt(), getIt(), getIt()),
   );
+}
+
+void _registerRequestInspector(AppConfig config) {
+  getIt
+    ..registerLazySingleton(
+      () => RequestInspectorRepository(
+        getIt(),
+        getIt(),
+        getIt(),
+        getIt(),
+        localTimestamps: config.pingTimestampsLocal,
+      ),
+    )
+    ..registerFactory(() => RequestInspectorCubit(getIt()));
 }

@@ -1,6 +1,7 @@
 /// `LocationSource` (swappable interface, D3) and `GeolocatorLocationSource`:
-/// position stream, one-shot fix, provider on/off and location-permission
-/// checks, all converted to `PositionModel` and `Failure`s.
+/// position stream, one-shot fix, provider on/off, location-permission and
+/// precise-vs-approximate checks, and opening the Location settings screen,
+/// all converted to `PositionModel` and `Failure`s.
 ///
 /// Why it exists: the engine never imports `geolocator`, so the stack can be
 /// replaced (e.g. by a paid SDK) by writing one class.
@@ -30,6 +31,12 @@ abstract interface class LocationSource {
   Stream<bool> serviceEnabledChanges();
 
   Future<LocationAccess> access();
+
+  /// False when only approximate location was granted (Android 12+).
+  Future<bool> isPrecise();
+
+  /// Opens the phone's Location settings screen; false when it could not.
+  Future<bool> openLocationSettings();
 }
 
 class GeolocatorLocationSource implements LocationSource {
@@ -75,6 +82,14 @@ class GeolocatorLocationSource implements LocationSource {
       LocationPermission.denied || LocationPermission.unableToDetermine => LocationAccess.denied,
     };
   }
+
+  @override
+  Future<bool> isPrecise() async =>
+      // `unknown` (no permission yet, or an OS without the choice) is not "reduced".
+      await Geolocator.getLocationAccuracy() != LocationAccuracyStatus.reduced;
+
+  @override
+  Future<bool> openLocationSettings() => Geolocator.openLocationSettings();
 
   static PositionModel _toModel(Position p) => PositionModel(
         latitude: p.latitude,

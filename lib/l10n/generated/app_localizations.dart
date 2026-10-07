@@ -200,12 +200,6 @@ abstract class AppLocalizations {
   /// **'Outside your shift — tracking resumes when it starts'**
   String get trackingNotificationOutsideShift;
 
-  /// Tracking notification text when the session expired; fixes are still collected
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in to DynaOps to resume uploads'**
-  String get trackingNotificationSignIn;
-
   /// Tracking notification text when location permission is missing
   ///
   /// In en, this message translates to:
@@ -253,6 +247,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'DynaOps collects your location even when the app is closed or not in use, during working time only, to record your route and visits for your supervisor. On the next screen choose \"Allow all the time\".'**
   String get stepBackgroundBody;
+
+  /// Walkthrough step: precise instead of approximate location
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on precise location'**
+  String get stepPreciseTitle;
+
+  /// Walkthrough step body: precise location
+  ///
+  /// In en, this message translates to:
+  /// **'DynaOps has only your approximate location, which can be kilometres off, so your route cannot be recorded. In Settings open Permissions → Location and turn on \"Use precise location\".'**
+  String get stepPreciseBody;
+
+  /// Walkthrough step: the phone's Location switch is off
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on location'**
+  String get stepLocationServiceTitle;
+
+  /// Walkthrough step body: the phone's Location switch is off
+  ///
+  /// In en, this message translates to:
+  /// **'Your phone\'s location is switched off, so DynaOps cannot record your route. Turn on Location to continue.'**
+  String get stepLocationServiceBody;
 
   /// Walkthrough step: notifications
   ///
@@ -325,6 +343,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open settings'**
   String get permissionOpenSettings;
+
+  /// Walkthrough button that opens the phone's Location settings
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on location'**
+  String get permissionTurnOnLocation;
 
   /// Walkthrough button that moves on without granting
   ///
@@ -547,6 +571,228 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'That did not work. Try again.'**
   String get diagNoticeActionFailed;
+
+  /// Title of the debug request inspector screen
+  ///
+  /// In en, this message translates to:
+  /// **'Request inspector'**
+  String get reqInspectorTitle;
+
+  /// Tooltip of the floating button that opens the request inspector
+  ///
+  /// In en, this message translates to:
+  /// **'Open request inspector'**
+  String get reqInspectorOpen;
+
+  /// Request inspector tab listing recorded API requests
+  ///
+  /// In en, this message translates to:
+  /// **'Requests ({count})'**
+  String reqTabRequests(int count);
+
+  /// Request inspector tab listing location points waiting to upload
+  ///
+  /// In en, this message translates to:
+  /// **'Queue ({count})'**
+  String reqTabQueue(int count);
+
+  /// Request inspector empty state
+  ///
+  /// In en, this message translates to:
+  /// **'No requests recorded yet'**
+  String get reqEmpty;
+
+  /// Request inspector empty queue
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing waiting to upload'**
+  String get reqQueueEmpty;
+
+  /// Request inspector action that deletes recorded requests
+  ///
+  /// In en, this message translates to:
+  /// **'Clear log'**
+  String get reqClear;
+
+  /// Request inspector refresh action
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get reqRefresh;
+
+  /// Request details section header
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get reqGeneral;
+
+  /// Request details label
+  ///
+  /// In en, this message translates to:
+  /// **'URL'**
+  String get reqUrl;
+
+  /// Request details label
+  ///
+  /// In en, this message translates to:
+  /// **'Method'**
+  String get reqMethod;
+
+  /// Request details label
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get reqStatus;
+
+  /// Request details label
+  ///
+  /// In en, this message translates to:
+  /// **'Duration'**
+  String get reqDuration;
+
+  /// A request duration in milliseconds
+  ///
+  /// In en, this message translates to:
+  /// **'{ms} ms'**
+  String reqDurationMs(int ms);
+
+  /// Request details label
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get reqTime;
+
+  /// Request details label: which part of the app sent the request
+  ///
+  /// In en, this message translates to:
+  /// **'Sent from'**
+  String get reqSource;
+
+  /// Request sent from the app's main isolate
+  ///
+  /// In en, this message translates to:
+  /// **'App'**
+  String get reqSourceUi;
+
+  /// Request sent from the background tracking service
+  ///
+  /// In en, this message translates to:
+  /// **'Tracking service'**
+  String get reqSourceService;
+
+  /// Number of location pings in an upload request
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 ping} other{{count} pings}}'**
+  String reqPings(int count);
+
+  /// Request details section header
+  ///
+  /// In en, this message translates to:
+  /// **'Request headers'**
+  String get reqRequestHeaders;
+
+  /// Request details section header for the request body
+  ///
+  /// In en, this message translates to:
+  /// **'Payload'**
+  String get reqRequestBody;
+
+  /// Request details section header for the response body
+  ///
+  /// In en, this message translates to:
+  /// **'Response'**
+  String get reqResponseBody;
+
+  /// Shown when a request or response has no body
+  ///
+  /// In en, this message translates to:
+  /// **'(empty)'**
+  String get reqNoBody;
+
+  /// Copies a body to the clipboard
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get reqCopy;
+
+  /// Snackbar after copying
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get reqCopied;
+
+  /// Status of a request that never got an HTTP answer
+  ///
+  /// In en, this message translates to:
+  /// **'No response'**
+  String get reqNoStatus;
+
+  /// Queued point label: when the GPS fix was taken
+  ///
+  /// In en, this message translates to:
+  /// **'Captured'**
+  String get reqCapturedAt;
+
+  /// Queued point label
+  ///
+  /// In en, this message translates to:
+  /// **'Accuracy'**
+  String get reqAccuracy;
+
+  /// Queued point label: upload attempts so far
+  ///
+  /// In en, this message translates to:
+  /// **'Attempts'**
+  String get reqAttempts;
+
+  /// Queued point label: upload batch id
+  ///
+  /// In en, this message translates to:
+  /// **'Batch'**
+  String get reqBatch;
+
+  /// Queued point label
+  ///
+  /// In en, this message translates to:
+  /// **'Retryable'**
+  String get reqRetryable;
+
+  /// Request inspector label
+  ///
+  /// In en, this message translates to:
+  /// **'Upload running'**
+  String get reqUploadRunning;
+
+  /// Queued point section: the JSON ping that will be uploaded
+  ///
+  /// In en, this message translates to:
+  /// **'Will be sent as'**
+  String get reqWirePayload;
+
+  /// Request inspector snackbar
+  ///
+  /// In en, this message translates to:
+  /// **'An upload is already running'**
+  String get reqNoticeSyncBusy;
+
+  /// Request inspector snackbar
+  ///
+  /// In en, this message translates to:
+  /// **'Log cleared'**
+  String get reqNoticeCleared;
+
+  /// Request inspector error title
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t read the request log'**
+  String get reqLoadFailed;
+
+  /// Under the step counter of the mandatory permission walkthrough
+  ///
+  /// In en, this message translates to:
+  /// **'DynaOps needs all of these to work. You can use the app as soon as they are allowed.'**
+  String get permissionsRequiredNote;
 }
 
 class _AppLocalizationsDelegate

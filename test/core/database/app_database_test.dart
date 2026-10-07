@@ -10,14 +10,14 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../helpers/test_database.dart';
 
 void main() {
-  test('creates the v1 stores at the current schema version', () async {
+  test('creates every store at the current schema version', () async {
     final database = await openTestDatabase();
     final version = (await database.db.rawQuery('PRAGMA user_version')).first.values.first;
     final tables = (await database.db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table'"))
         .map((r) => r['name'])
         .toSet();
     expect(version, AppDatabase.schemaVersion);
-    expect(tables, containsAll(['location_points', 'sync_meta']));
+    expect(tables, containsAll(['location_points', 'sync_meta', 'request_log']));
     await database.close();
   });
 }

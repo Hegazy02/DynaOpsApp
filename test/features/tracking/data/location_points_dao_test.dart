@@ -2,7 +2,7 @@
 /// counts and isolation, oldest-first claiming that never hands the same row
 /// to two batches, synced / released / dead-lettered / permanently failed
 /// transitions, requeue of retryable failures, crash recovery, latest fix,
-/// and retention that never deletes pending rows.
+/// and deleting synced rows (keeping the newest) without touching pending ones.
 ///
 /// Status: active — part of `flutter test`.
 library;
@@ -41,6 +41,20 @@ void main() {
 
   tearDown(() => database.close());
 
+  test('queued lists the user\'s unsynced fixes oldest first, with error and batch', () async {
+    await dao.claimBatch(userId: 'A', batchId: 'x', limit: 1);
+    await dao.failBatch('x', error: 'boom', retryable: false);
+    await dao.claimBatch(userId: 'A', batchId: 'y', limit: 1);
+    await dao.markSynced('y');
+
+    final queued = await dao.queued('A');
+    expect(queued.map((q) => q.fix.id), ['a1', 'a3']);
+    expect(queued.first.fix.state, FixState.failed);
+    expect(queued.first.lastError, 'boom');
+    expect(queued.first.batchId, 'x');
+    expect(queued.first.retryable, isFalse);
+  });
+
   test('counts are per user', () async {
     expect((await dao.counts('A')).pending, 3);
     expect((await dao.counts('B')).pending, 1);
@@ -53,6 +67,25 @@ void main() {
     expect(second.map((f) => f.id), ['a3']);
     expect(await dao.claimBatch(userId: 'A', batchId: 'z', limit: 2), isEmpty);
     expect((await dao.counts('B')).pending, 1);
+  });
+
+  test('deleteSynced removes the user\'s synced rows but keeps their newest row', () async {
+    final all = await dao.claimBatch(userId: 'A', batchId: 'x', limit: 3);
+    expect(all, hasLength(3));
+    await dao.markSynced('x');
+    await dao.claimBatch(userId: 'B', batchId: 'y', limit: 1);
+    await dao.markSynced('y');
+
+    expect(await dao.deleteSynced('A'), 2);
+    expect((await dao.latest('A'))!.id, 'a3');
+    expect((await dao.latest('B'))!.id, 'b1', reason: 'other users untouched');
+  });
+
+  test('deleteSynced never touches pending rows', () async {
+    await dao.claimBatch(userId: 'A', batchId: 'x', limit: 1);
+    await dao.markSynced('x');
+    expect(await dao.deleteSynced('A'), 1);
+    expect((await dao.counts('A')).pending, 2);
   });
 
   test('synced rows leave the pending count', () async {
@@ -91,15 +124,6 @@ void main() {
   test('latest returns the newest fix of that user', () async {
     expect((await dao.latest('A'))!.id, 'a3');
     expect(await dao.latest('C'), isNull);
-  });
-
-  test('purge drops old synced rows and never pending ones', () async {
-    await dao.claimBatch(userId: 'A', batchId: 'x', limit: 2);
-    await dao.markSynced('x');
-    final removed = await dao.purge(syncedBefore: now, maxRows: 100);
-    expect(removed, 2);
-    expect((await dao.counts('A')).pending, 1);
-    expect((await dao.counts('B')).pending, 1);
   });
 
   test('a duplicate id is ignored, not an error', () async {

@@ -1,6 +1,6 @@
 /// Tests for `FixFilter`: poor accuracy, duplicate timestamps and impossible
-/// jumps are rejected and counted; missing speed/heading is derived from the
-/// previous fix on short gaps only; GPS noise reads as standing still.
+/// jumps are rejected and counted; accepted fixes pass through unchanged (no
+/// invented speed); distance and bearing helpers.
 ///
 /// Status: active — part of `flutter test`.
 library;
@@ -41,28 +41,14 @@ void main() {
     expect(filter.rejected['jump'], 1);
   });
 
-  test('derives speed and heading when the receiver gave none', () {
+  test('passes accepted fixes through unchanged — no invented speed', () {
     filter.accept(at(0));
-    final next = filter.accept(at(10, lat: 30.001))!; // ≈111 m north in 10 s
-    expect(next.speed, closeTo(11.1, 0.2));
-    expect(next.heading, closeTo(0, 1));
+    expect(filter.accept(at(10, lat: 30.001))!.speed, isNull);
+    expect(filter.accept(at(20, lat: 30.002, speed: 3, heading: 90)), at(20, lat: 30.002, speed: 3, heading: 90));
   });
 
-  test('keeps the receiver values when present', () {
-    filter.accept(at(0));
-    final next = filter.accept(at(10, lat: 30.001, speed: 3, heading: 90))!;
-    expect((next.speed, next.heading), (3, 90));
-  });
-
-  test('movement within GPS noise reads as standing still', () {
-    filter.accept(at(0));
-    final next = filter.accept(at(5, lat: 30.00002))!;
-    expect(next.speed, 0);
-    expect(next.heading, isNull);
-  });
-
-  test('no derivation across a long gap', () {
-    filter.accept(at(0));
-    expect(filter.accept(at(600, lat: 30.01))!.speed, isNull);
+  test('distance and bearing helpers', () {
+    expect(FixFilter.distanceMeters(at(0), at(0, lat: 30.001)), closeTo(111.2, 0.5));
+    expect(FixFilter.bearingDegrees(at(0), at(0, lng: 31.001)), closeTo(90, 1));
   });
 }

@@ -1,5 +1,6 @@
 /// `PermissionStepCard`: one walkthrough step — icon, title, explanation, a
-/// primary action and a "Next" text button — with already-resolved strings.
+/// primary action and, for skippable steps only, a "Next" text button — with
+/// already-resolved strings.
 ///
 /// Why it exists: keeps `PermissionWalkthroughScreen.build` small; it is
 /// specific to this feature, so it stays in `view/widgets/`, not
@@ -17,8 +18,8 @@ class PermissionStepCard extends StatelessWidget {
     required this.body,
     required this.primaryLabel,
     required this.onPrimary,
-    required this.nextLabel,
-    required this.onNext,
+    this.nextLabel,
+    this.onNext,
     this.busy = false,
   });
 
@@ -27,8 +28,9 @@ class PermissionStepCard extends StatelessWidget {
   final String body;
   final String primaryLabel;
   final VoidCallback onPrimary;
-  final String nextLabel;
-  final VoidCallback onNext;
+  final String? nextLabel;
+  /// Null hides the "Next" button (required steps cannot be skipped).
+  final VoidCallback? onNext;
   final bool busy;
 
   @override
@@ -49,8 +51,10 @@ class PermissionStepCard extends StatelessWidget {
               ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
               : Text(primaryLabel),
         ),
-        const SizedBox(height: 8),
-        TextButton(onPressed: busy ? null : onNext, child: Text(nextLabel)),
+        if (onNext != null && nextLabel != null) ...[
+          const SizedBox(height: 8),
+          TextButton(onPressed: busy ? null : onNext, child: Text(nextLabel!)),
+        ],
       ],
     );
   }
