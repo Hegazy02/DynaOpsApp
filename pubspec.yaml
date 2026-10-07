@@ -75,6 +75,7 @@ dev_dependencies:
   bloc_test: ^10.0.0
   mocktail: ^1.0.5
   sqflite_common_ffi: ^2.4.3
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -118,3 +119,19 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Launcher icon: the same artwork and settings as the old DynaOps tracker
+# (dyn_gis), so the app looks the same on the home screen. Regenerate after
+# changing the source:
+#
+#     dart run flutter_launcher_icons
+#
+# The generator insets the adaptive foreground by 16%, inside the 66% safe
+# zone Android 8+ masks to; the background is the artwork's flat navy.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#192966"
+  adaptive_icon_foreground: "assets/icon/icon.png"
+  remove_alpha_ios: true
