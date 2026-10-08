@@ -2,7 +2,7 @@
 /// `core/router`, the light/dark themes from `core/theme`, the generated
 /// `AppLocalizations`, and the one root-level Cubit (`LocaleCubit`) that
 /// switches the native locale to the language picked in Angular. It owns the
-/// `PermissionGate` that keeps the app on the walkthrough until tracking has
+/// `PermissionGate` that keeps a tracked rep on the walkthrough until tracking has
 /// every permission it needs.
 ///
 /// Why it exists: keeps `main.dart` to bootstrapping only; feature Cubits are
@@ -29,7 +29,7 @@ class DynaOpsApp extends StatefulWidget {
 }
 
 class _DynaOpsAppState extends State<DynaOpsApp> {
-  final PermissionGate _gate = PermissionGate(getIt());
+  final PermissionGate _gate = PermissionGate(getIt(), getIt());
   late final GoRouter _router = createAppRouter(_gate);
 
   @override

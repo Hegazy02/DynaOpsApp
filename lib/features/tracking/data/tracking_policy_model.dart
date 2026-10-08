@@ -74,15 +74,24 @@ class TrackingPolicyModel extends Equatable {
   /// What the server assumes for a rep with no settings row: tracked, Route mode.
   static const serverDefault = TrackingPolicyModel(enabled: true, mode: 'Route');
 
+  /// Before the first `RepDashboard` answer: not tracked, and the app is not blocked.
+  static const unknown = TrackingPolicyModel(enabled: false, mode: 'Route');
+
+  /// Modes that collect; any other `trackingMode` (e.g. `Off`) means not tracked.
+  static const trackedModes = {'Continuous', 'Route', 'Shift'};
+
   /// Reads the snapshot written by [toJson], or the tracking fields of a
-  /// `RepDashboard` payload (`trackingEnabled` / `trackingMode`).
+  /// `RepDashboard` payload (`trackingEnabled` / `trackingMode`). Tracked only
+  /// when the flag is not false and the mode is one of [trackedModes]; a
+  /// missing mode is the server default (Route).
   factory TrackingPolicyModel.fromJson(Map<String, dynamic> json) {
     final enabled = json['enabled'] ?? json['trackingEnabled'];
-    final mode = json['mode'] ?? json['trackingMode'];
+    final rawMode = json['mode'] ?? json['trackingMode'];
+    final mode = rawMode is String && rawMode.isNotEmpty ? rawMode : 'Route';
     final window = json['shiftWindow'];
     return TrackingPolicyModel(
-      enabled: enabled is bool ? enabled : true,
-      mode: mode is String && mode.isNotEmpty ? mode : 'Route',
+      enabled: enabled != false && trackedModes.contains(mode),
+      mode: mode,
       shiftWindow: window is Map<String, dynamic> ? ShiftWindowModel.fromJson(window) : null,
     );
   }

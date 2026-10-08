@@ -66,4 +66,15 @@ void main() {
     expect(policy.shiftWindow!.startMinutes, 8 * 60 + 30);
     expect(TrackingPolicyModel.fromJson(policy.toJson()), policy);
   });
+
+  test('trackingMode decides tracking: Always / Routes / Working hours on, anything else off', () {
+    for (final mode in ['Continuous', 'Route', 'Shift']) {
+      expect(TrackingPolicyModel.fromJson({'trackingEnabled': true, 'trackingMode': mode}).enabled, true, reason: mode);
+    }
+    final off = TrackingPolicyModel.fromJson({'trackingEnabled': true, 'trackingMode': 'Off'});
+    expect(off.enabled, false);
+    expect(decide(off, local(5, 10)).reason, 'disabledByAdmin');
+    expect(TrackingPolicyModel.fromJson({'trackingEnabled': false, 'trackingMode': 'Continuous'}).enabled, false);
+    expect(TrackingPolicyModel.fromJson(off.toJson()), off);
+  });
 }

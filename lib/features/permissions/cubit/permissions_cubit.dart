@@ -8,9 +8,10 @@
 /// permission offers Settings instead of asking again. After the required
 /// steps, a maker-specific hint is shown once per install and can be skipped.
 /// Finishing records completion and asks the coordinator to (re)start tracking.
+/// Each step says whether it is `mandatory` (the rep's tracking is on).
 ///
-/// Why it exists: the app may not be used until tracking has every permission
-/// it needs (product decision, 2026-10-07; enforced by `PermissionGate`); the
+/// Why it exists: a tracked rep may not use the app until tracking has every
+/// permission it needs (product decision, 2026-10-07; enforced by `PermissionGate`); the
 /// order and Android rules of the walkthrough are logic, kept out of the screen.
 /// Status: used — provided on `/permissions`; tested in
 /// `test/features/permissions/cubit/permissions_cubit_test.dart`.
@@ -21,6 +22,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../device/data/device_repository.dart';
+import '../../tracking/data/tracking_policy_repository.dart';
 import '../../tracking/engine/tracking_coordinator.dart';
 import '../data/oem_brand.dart';
 import '../data/permission_status_model.dart';
@@ -28,11 +30,13 @@ import '../data/permissions_repository.dart';
 import 'permissions_state.dart';
 
 class PermissionsCubit extends Cubit<PermissionsState> {
-  PermissionsCubit(this._permissions, this._device, this._coordinator) : super(const PermissionsLoading());
+  PermissionsCubit(this._permissions, this._device, this._coordinator, this._policies)
+      : super(const PermissionsLoading());
 
   final PermissionsRepository _permissions;
   final DeviceRepository _device;
   final TrackingCoordinator _coordinator;
+  final TrackingPolicyRepository _policies;
 
   static const required = [
     WalkthroughStep.location,
@@ -113,6 +117,7 @@ class PermissionsCubit extends Cubit<PermissionsState> {
       total: steps.length,
       needsSettings: _permanentlyDenied(step, status),
       oem: _oem,
+      mandatory: await _policies.trackingRequired(),
     ));
   }
 

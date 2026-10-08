@@ -20,6 +20,7 @@ import 'package:dynaopsapp/features/permissions/cubit/permissions_state.dart';
 import 'package:dynaopsapp/features/permissions/data/oem_brand.dart';
 import 'package:dynaopsapp/features/permissions/data/permission_status_model.dart';
 import 'package:dynaopsapp/features/permissions/data/permissions_repository.dart';
+import 'package:dynaopsapp/features/tracking/data/tracking_policy_repository.dart';
 import 'package:dynaopsapp/features/tracking/data/tracking_status_model.dart';
 import 'package:dynaopsapp/features/tracking/engine/tracking_coordinator.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,6 +31,8 @@ class _MockPermissions extends Mock implements PermissionsRepository {}
 class _MockDevice extends Mock implements DeviceRepository {}
 
 class _MockCoordinator extends Mock implements TrackingCoordinator {}
+
+class _MockPolicies extends Mock implements TrackingPolicyRepository {}
 
 PermissionStatusModel status({
   PermissionState location = PermissionState.granted,
@@ -56,6 +59,7 @@ void main() {
   late _MockPermissions permissions;
   late _MockDevice deviceRepo;
   late _MockCoordinator coordinator;
+  late _MockPolicies policies;
   late StreamController<PermissionStatusModel> changes;
 
   setUpAll(() => registerFallbackValue(<AppPermission>[]));
@@ -64,6 +68,8 @@ void main() {
     permissions = _MockPermissions();
     deviceRepo = _MockDevice();
     coordinator = _MockCoordinator();
+    policies = _MockPolicies();
+    when(() => policies.trackingRequired()).thenAnswer((_) async => true);
     changes = StreamController.broadcast();
     when(() => permissions.changes).thenAnswer((_) => changes.stream);
     when(() => deviceRepo.info()).thenAnswer((_) async => device('Google'));
@@ -75,7 +81,7 @@ void main() {
 
   tearDown(() => changes.close());
 
-  PermissionsCubit build() => PermissionsCubit(permissions, deviceRepo, coordinator);
+  PermissionsCubit build() => PermissionsCubit(permissions, deviceRepo, coordinator, policies);
 
   blocTest<PermissionsCubit, PermissionsState>(
     'approximate location → precise step, which opens app settings',
@@ -251,6 +257,25 @@ void main() {
     build: build,
     act: (cubit) => cubit.load(),
     expect: () => [const PermissionsFinished()],
+  );
+
+  blocTest<PermissionsCubit, PermissionsState>(
+    'steps are not mandatory for a rep whose tracking is off',
+    setUp: () {
+      when(() => permissions.status()).thenAnswer((_) async => status(locationOn: false));
+      when(() => policies.trackingRequired()).thenAnswer((_) async => false);
+    },
+    build: build,
+    act: (cubit) => cubit.load(),
+    expect: () => [
+      const PermissionsStepShown(
+        step: WalkthroughStep.locationService,
+        index: 4,
+        total: 6,
+        needsSettings: true,
+        mandatory: false,
+      ),
+    ],
   );
 
   test('trackingReady needs precise location all the time, Location on, notifications and battery', () {

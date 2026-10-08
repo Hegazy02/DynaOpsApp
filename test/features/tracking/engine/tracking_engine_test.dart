@@ -180,6 +180,15 @@ void main() {
     expect(streamsOpened, 0);
   });
 
+  test('no RepDashboard answer yet → nothing collected and the service stops itself', () async {
+    when(() => policies.refreshIfStale(force: any(named: 'force')))
+        .thenAnswer((_) async => TrackingPolicyModel.unknown);
+    await engine().start();
+    expect(published.last.state, TrackingState.stopped);
+    expect(streamsOpened, 0);
+    verify(() => port.stopService()).called(1);
+  });
+
   test('disabled by an admin → stopped and the service stops itself', () async {
     when(() => policies.refreshIfStale(force: any(named: 'force')))
         .thenAnswer((_) async => const TrackingPolicyModel(enabled: false, mode: 'Route'));

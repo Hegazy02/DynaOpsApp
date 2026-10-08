@@ -4,6 +4,9 @@
 /// with A's token, forget A's policy) before adopting and starting for B.
 /// `signOut` stops collection, flushes (bounded) and only then clears the
 /// session. Re-checks when permissions or the session change, and on resume.
+/// Never starts the service for a rep whose tracking is off, or before
+/// `RepDashboard` has answered once (`disabledByAdmin`); retries when the
+/// device comes back online.
 ///
 /// Why it exists: an engine, not a Cubit — these rules must run whatever
 /// screen is open (or none), and they span the session, tracking, sync and
@@ -18,6 +21,7 @@ import '../../../core/analytics/analytics_client.dart';
 import '../../auth/data/session_change_model.dart';
 import '../../auth/data/session_model.dart';
 import '../../auth/data/session_repository.dart';
+import '../../connectivity/data/connectivity_repository.dart';
 import '../../permissions/data/permission_status_model.dart';
 import '../../permissions/data/permissions_repository.dart';
 import '../../sync/data/sync_repository.dart';
@@ -34,6 +38,7 @@ class TrackingCoordinator {
     this._policies,
     this._permissions,
     this._analytics,
+    this._connectivity,
   );
 
   static const flushTimeout = Duration(seconds: 20);
@@ -44,6 +49,7 @@ class TrackingCoordinator {
   final TrackingPolicyRepository _policies;
   final PermissionsRepository _permissions;
   final AnalyticsClient _analytics;
+  final ConnectivityRepository _connectivity;
   final _subscriptions = <StreamSubscription<Object?>>[];
 
   Future<void> start() async {
@@ -51,6 +57,12 @@ class TrackingCoordinator {
       ..add(_permissions.changes.listen(_onPermissions))
       ..add(_session.changes.listen((change) {
         if (change is SessionExpired) unawaited(_tracking.notify(TaskCommand.sessionChanged));
+      }))
+      ..add(_connectivity.changes.listen((network) {
+        // Not tracked for want of a RepDashboard answer (or tracking off): ask again.
+        final notTracked = !_tracking.current.backgroundService &&
+            _tracking.current.reason == TrackingReason.disabledByAdmin;
+        if (network.online && notTracked && _session.current != null) unawaited(_start());
       }));
     if (await _tracking.init()) unawaited(_analytics.capture('force_stop_detected'));
     if (_session.current != null) await _start();
@@ -89,7 +101,20 @@ class TrackingCoordinator {
     }
   }
 
+  /// Starts the service only for a rep whose tracking is on (Always, Routes or
+  /// Working hours); an "off" rep never gets the service or a GPS stream.
   Future<TrackingStatusModel> _start() async {
+    if (_session.current != null) {
+      final policy = await _policies.refreshIfStale(force: true);
+      if (!policy.enabled) {
+        if (_tracking.current.backgroundService) {
+          // A running service shuts itself down once it reads the new policy.
+          await _tracking.notify(TaskCommand.refreshPolicy);
+          return _tracking.current;
+        }
+        return _tracking.markDisabled();
+      }
+    }
     final status = await _tracking.ensureRunning();
     if (status.backgroundService) unawaited(_analytics.capture('tracking_started'));
     if (status.state == TrackingState.permissionRequired || status.state == TrackingState.permissionDenied) {

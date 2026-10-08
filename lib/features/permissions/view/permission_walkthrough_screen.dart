@@ -50,12 +50,13 @@ class _PermissionWalkthroughScreenState extends State<PermissionWalkthroughScree
 
   void _close(BuildContext context) => context.canPop() ? context.pop() : context.go('/');
 
-  /// Back can never get around the walkthrough: while a permission is missing
-  /// it leaves the app; once everything is granted it closes the screen.
+  /// Back can never get around the walkthrough for a tracked rep: while a
+  /// permission is missing it leaves the app; once everything is granted, or
+  /// for a rep whose tracking is off, it closes the screen.
   void _onBack(BuildContext context) {
     final state = context.read<PermissionsCubit>().state;
     if (state is PermissionsFinished ||
-        (state is PermissionsStepShown && state.step == WalkthroughStep.oem)) {
+        (state is PermissionsStepShown && (state.step == WalkthroughStep.oem || !state.mandatory))) {
       _close(context);
     } else {
       SystemNavigator.pop();

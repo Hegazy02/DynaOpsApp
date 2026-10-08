@@ -114,6 +114,10 @@ class TrackingRepository {
     return _status;
   }
 
+  /// Tracking is off for this rep: the service is not started at all.
+  Future<TrackingStatusModel> markDisabled() =>
+      _setLocal(state: TrackingState.stopped, reason: TrackingReason.disabledByAdmin, enabled: false);
+
   /// Sends [command] (`TaskCommand`) when the service is running.
   Future<void> notify(String command) async {
     if (await _client.isRunning()) _client.send({TaskCommand.key: command});
@@ -167,6 +171,7 @@ class TrackingRepository {
     String? reason,
     String? errorCode,
     PermissionStatusModel? permissions,
+    bool enabled = true,
   }) async {
     PermissionStatusModel? perms = permissions;
     try {
@@ -178,6 +183,7 @@ class TrackingRepository {
       reason: () => reason,
       errorCode: () => errorCode,
       backgroundService: false,
+      enabled: enabled,
       locationPermission: perms?.location.wire,
       backgroundPermission: perms?.backgroundLocation.wire,
       pendingUploads: userId == null ? 0 : (await _points.counts(userId)).pending,

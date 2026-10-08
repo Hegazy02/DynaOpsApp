@@ -1,13 +1,15 @@
 /// `TrackingPolicyRepository`: the rep's tracking policy — the stored snapshot
-/// (works offline), refreshed from `GET RepDashboard` and saved back; falls
-/// back to the server default (enabled, Route) when nothing was ever fetched.
+/// (works offline), refreshed from `GET RepDashboard` and saved back; when
+/// nothing was ever fetched the rep is not tracked (`TrackingPolicyModel.unknown`).
+/// [changes] fires on every refresh / clear in this isolate.
 ///
 /// Why it exists: §8.1 refreshes on launch, on `auth.setSession`, on resume and
 /// hourly; both isolates read the same snapshot from the shared database.
 /// Status: used — by `TrackingEngine` (service) and `TrackingHandler`
-/// (`tracking.refreshPolicy`).
+/// (`tracking.refreshPolicy`), and `PermissionGate` (UI isolate).
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -28,8 +30,13 @@ class TrackingPolicyRepository {
   final SyncMetaDao _meta;
   final AppLogger _logger;
   final DateTime Function() _now;
+  final _changes = StreamController<TrackingPolicyModel>.broadcast();
 
-  /// The last known policy (snapshot or server default). Never throws.
+  /// The policy just fetched, or [TrackingPolicyModel.unknown] after [clear].
+  Stream<TrackingPolicyModel> get changes => _changes.stream;
+
+  /// The last `RepDashboard` answer, or [TrackingPolicyModel.unknown] (not
+  /// tracked) before the first one. Never throws.
   Future<TrackingPolicyModel> current() async {
     try {
       final raw = await _meta.get(SyncMetaKeys.policy);
@@ -37,8 +44,12 @@ class TrackingPolicyRepository {
     } catch (e) {
       _logger.warn('Ignoring bad policy snapshot: $e');
     }
-    return TrackingPolicyModel.serverDefault;
+    return TrackingPolicyModel.unknown;
   }
+
+  /// Tracking is a condition of using the app: a `RepDashboard` answer is
+  /// stored and says tracking is on. False before the first answer. Never throws.
+  Future<bool> trackingRequired() async => (await current()).enabled;
 
   Future<bool> isStale() async {
     final fetchedAt = await _meta.getDate(SyncMetaKeys.policyFetchedAt);
@@ -57,6 +68,7 @@ class TrackingPolicyRepository {
     }
     await _meta.set(SyncMetaKeys.policy, jsonEncode(policy.toJson()));
     await _meta.setDate(SyncMetaKeys.policyFetchedAt, _now());
+    _changes.add(policy);
     return policy;
   }
 
@@ -76,5 +88,6 @@ class TrackingPolicyRepository {
   Future<void> clear() async {
     await _meta.set(SyncMetaKeys.policy, null);
     await _meta.set(SyncMetaKeys.policyFetchedAt, null);
+    _changes.add(TrackingPolicyModel.unknown);
   }
 }

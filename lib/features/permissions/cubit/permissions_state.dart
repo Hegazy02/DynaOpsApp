@@ -1,7 +1,7 @@
 /// `PermissionsState`: sealed states of the permission walkthrough —
 /// `PermissionsLoading`, `PermissionsStepShown` (current step, its position,
 /// whether it is already granted or only fixable in settings, the phone's
-/// maker), `PermissionsFinished`.
+/// maker, whether the rep's tracking makes it mandatory), `PermissionsFinished`.
 ///
 /// Why it exists: sealed, value-equal states (flutter-cubit-architecture).
 /// Status: used — emitted by `PermissionsCubit`, rendered by
@@ -41,6 +41,7 @@ final class PermissionsStepShown extends PermissionsState {
     required this.needsSettings,
     this.oem,
     this.busy = false,
+    this.mandatory = true,
   });
 
   final WalkthroughStep step;
@@ -55,6 +56,10 @@ final class PermissionsStepShown extends PermissionsState {
   final OemBrand? oem;
   final bool busy;
 
+  /// The rep's tracking is on, so the app may not be used without the step;
+  /// false for an untracked rep, whose back button simply closes the screen.
+  final bool mandatory;
+
   PermissionsStepShown copyWith({bool? needsSettings, bool? busy}) => PermissionsStepShown(
         step: step,
         index: index,
@@ -62,10 +67,11 @@ final class PermissionsStepShown extends PermissionsState {
         needsSettings: needsSettings ?? this.needsSettings,
         oem: oem,
         busy: busy ?? this.busy,
+        mandatory: mandatory,
       );
 
   @override
-  List<Object?> get props => [step, index, total, needsSettings, oem, busy];
+  List<Object?> get props => [step, index, total, needsSettings, oem, busy, mandatory];
 }
 
 final class PermissionsFinished extends PermissionsState {

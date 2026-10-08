@@ -79,7 +79,7 @@ class TrackingEngine {
     heartbeat: _config.heartbeatInterval,
   );
 
-  TrackingPolicyModel _policy = TrackingPolicyModel.serverDefault;
+  TrackingPolicyModel _policy = TrackingPolicyModel.unknown;
   TrackingStatusModel _status = const TrackingStatusModel(state: TrackingState.starting, backgroundService: true);
   StreamSubscription<PositionModel>? _positions;
   StreamSubscription<bool>? _providerChanges;

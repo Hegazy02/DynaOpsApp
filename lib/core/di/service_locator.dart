@@ -121,7 +121,7 @@ void _registerConnectivity() {
 void _registerPermissions() {
   getIt
     ..registerLazySingleton(() => PermissionsRepository(getIt(), getIt()))
-    ..registerFactory(() => PermissionsCubit(getIt(), getIt(), getIt()));
+    ..registerFactory(() => PermissionsCubit(getIt(), getIt(), getIt(), getIt()));
 }
 
 void _registerDevice() {
@@ -179,7 +179,7 @@ void _registerTracking(AppConfig config) {
         ),
       ),
     )
-    ..registerLazySingleton(() => TrackingCoordinator(getIt(), getIt(), getIt(), getIt(), getIt(), getIt()));
+    ..registerLazySingleton(() => TrackingCoordinator(getIt(), getIt(), getIt(), getIt(), getIt(), getIt(), getIt()));
 }
 
 void _registerBridge() {
