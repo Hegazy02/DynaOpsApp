@@ -34,12 +34,8 @@ void main() {
     });
   });
 
-  test('local mode writes the device clock without an offset', () {
-    final at = fix.toWirePing(localTimestamps: true)['at'] as String;
-    final local = fix.position.timestamp.toLocal();
-    expect(at, startsWith('${local.year}-'));
-    expect(at, endsWith(':03'));
-    expect(at.contains('Z') || at.contains('+'), false);
+  test('default mode writes Saudi time without an offset', () {
+    expect(fix.toWirePing(localTimestamps: true)['at'], '2026-10-06T12:59:03');
   });
 
   test('missing speed and heading are sent as 0', () {

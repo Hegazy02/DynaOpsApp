@@ -103,9 +103,10 @@ class LocationFixModel extends Equatable {
         'source': 'Gps',
       };
 
-  /// `yyyy-MM-ddTHH:mm:ss`, no offset, in device-local time or UTC.
+  /// `yyyy-MM-ddTHH:mm:ss`, no offset, in Saudi time (what the backend expects,
+  /// wherever the device is) or UTC.
   static String formatWireTimestamp(DateTime value, {required bool local}) {
-    final t = local ? value.toLocal() : value.toUtc();
+    final t = local ? value.toUtc().add(const Duration(hours: 3)) : value.toUtc();
     String two(int n) => n.toString().padLeft(2, '0');
     return '${t.year.toString().padLeft(4, '0')}-${two(t.month)}-${two(t.day)}'
         'T${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
