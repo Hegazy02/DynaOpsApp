@@ -15,10 +15,12 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../../env/env.dart';
+
 /// Where the Angular app is served from (§10.1). Only [remote] is implemented.
 enum WebSource { remote, bundled }
 
-/// Per-tenant configuration, read from `--dart-define-from-file=env/<tenant>.json` (D9).
+/// Per-tenant configuration: [Env] (committed per branch), overridable with `--dart-define` (D9).
 class AppConfig {
   AppConfig({
     required this.webUrl,
@@ -36,19 +38,17 @@ class AppConfig {
   });
 
   factory AppConfig.fromEnvironment() {
-    const webUrl = String.fromEnvironment('WEB_URL');
-    const apiBaseUrl = String.fromEnvironment('API_BASE_URL');
+    const webUrl = String.fromEnvironment('WEB_URL', defaultValue: Env.webUrl);
+    const apiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: Env.apiBaseUrl);
     if (webUrl.isEmpty || apiBaseUrl.isEmpty) {
-      throw StateError(
-        'WEB_URL / API_BASE_URL missing: run with --dart-define-from-file=env/<tenant>.json',
-      );
+      throw StateError('WEB_URL / API_BASE_URL missing: set them in lib/env/env.dart');
     }
     return AppConfig(
       webUrl: Uri.parse(webUrl),
       apiBaseUrl: Uri.parse(apiBaseUrl),
-      tenant: const String.fromEnvironment('TENANT', defaultValue: 'default'),
-      posthogKey: const String.fromEnvironment('POSTHOG_KEY'),
-      posthogHost: const String.fromEnvironment('POSTHOG_HOST'),
+      tenant: const String.fromEnvironment('TENANT', defaultValue: Env.tenant),
+      posthogKey: const String.fromEnvironment('POSTHOG_KEY', defaultValue: Env.posthogKey),
+      posthogHost: const String.fromEnvironment('POSTHOG_HOST', defaultValue: Env.posthogHost),
       pingTimestampsLocal:
           const String.fromEnvironment('PING_TIMESTAMPS', defaultValue: 'local').toLowerCase() != 'utc',
       gpsSampleInterval: const Duration(seconds: int.fromEnvironment('GPS_SAMPLE_SECONDS', defaultValue: 1)),

@@ -1,6 +1,6 @@
 /// App entry point: boots Flutter, opens the channel to the tracking service,
-/// builds `AppConfig` from the compile-time
-/// `--dart-define-from-file=env/<tenant>.json` values, registers everything
+/// builds `AppConfig` from the committed `lib/env/env.dart` (optionally
+/// overridden with `--dart-define`), registers everything
 /// in `get_it`, waits for the async singletons (analytics, prefs, database,
 /// stored session), starts the tracking coordinator (auto-start, D8) and runs
 /// `DynaOpsApp`.

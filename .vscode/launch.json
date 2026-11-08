@@ -2,11 +2,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "dynaopsapp (env/local.json)",
+      "name": "dynaopsapp",
       "request": "launch",
       "type": "dart",
-      "program": "lib/main.dart",
-      "toolArgs": ["--dart-define-from-file=env/local.json"]
+      "program": "lib/main.dart"
     }
   ]
 }
