@@ -1,4 +1,16 @@
+![logo](images/dynasystems_logo.svg)
+
 # دليل تثبيت تطبيق DynaOps وتفعيل الأذونات
+
+## ضبط الوثيقة
+
+### سجل التغييرات
+
+| التاريخ | الإصدار | المُعِدّ | التغيير | المرجع |
+|---|---|---|---|---|
+| 08/11/2026 | V1.00 | م. عبد الرحمن حجازي | إنشاء الدليل (إصدار التطبيق 1.0.0) | — |
+
+---
 
 يشرح هذا الدليل خطوة بخطوة كيفية تثبيت تطبيق **DynaOps** على هاتف أندرويد من ملف APK، وكيفية الموافقة على الأذونات التي يطلبها التطبيق حتى تعمل خدمات الموقع (GPS) والكاميرا والإشعارات على النحو الصحيح.
 
@@ -249,9 +261,25 @@
 - يظهر الإشعار الثابت **دائمًا** طوال مدة مشاركة موقعك، فتعرف في كل وقت متى يكون التتبّع قيد التشغيل.
 - تُرسَل البيانات إلى مشرفك في الشركة فقط لمتابعة المسار والزيارات.
 
+---
+
+**إعداد: المهندس عبد الرحمن حجازي**
+
 <!-- lang:en -->
 
+![logo](images/dynasystems_logo.svg)
+
 # DynaOps Installation and Permissions Guide
+
+## Document Control
+
+### Change Record
+
+| Date | Version | Author | Change | Reference |
+|---|---|---|---|---|
+| 08/11/2026 | V1.00 | Eng. Abdelrahman Hegazy | Create guide (app version 1.0.0) | — |
+
+---
 
 This guide explains, step by step, how to install the **DynaOps** app on an Android phone from an APK file, and how to grant the permissions the app requests so that location (GPS), the camera and notifications work correctly.
 
@@ -500,3 +528,7 @@ This is normal and not a problem: tracking only runs **during your shift**, and 
 - The app collects your location **during working time only**.
 - The persistent notification is **always** shown while your location is being shared, so you always know when tracking is running.
 - The data is sent only to your supervisor at the company, to follow your route and visits.
+
+---
+
+**Prepared by: Eng. Abdelrahman Hegazy**
