@@ -578,12 +578,6 @@ abstract class AppLocalizations {
   /// **'Request inspector'**
   String get reqInspectorTitle;
 
-  /// Tooltip of the floating button that opens the request inspector
-  ///
-  /// In en, this message translates to:
-  /// **'Open request inspector'**
-  String get reqInspectorOpen;
-
   /// Request inspector tab listing recorded API requests
   ///
   /// In en, this message translates to:

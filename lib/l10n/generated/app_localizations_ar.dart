@@ -280,9 +280,6 @@ class AppLocalizationsAr extends AppLocalizations {
   String get reqInspectorTitle => 'مراقب الطلبات';
 
   @override
-  String get reqInspectorOpen => 'فتح مراقب الطلبات';
-
-  @override
   String reqTabRequests(int count) {
     return 'الطلبات ($count)';
   }

@@ -6,7 +6,7 @@
 ///
 /// Why it exists: see what was sent, what came back and what is still waiting
 /// without adb or a proxy.
-/// Status: used — mounted on `/requests`, opened from `RequestInspectorFab`.
+/// Status: used — mounted on `/requests`, opened by 7 quick taps on `ShellScreen`.
 library;
 
 import 'package:flutter/material.dart';
@@ -25,6 +25,8 @@ enum _MenuAction { retryFailed, clearLog }
 
 class RequestInspectorScreen extends StatelessWidget {
   const RequestInspectorScreen({super.key});
+
+  static const route = '/requests';
 
   @override
   Widget build(BuildContext context) {

@@ -279,9 +279,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reqInspectorTitle => 'Request inspector';
 
   @override
-  String get reqInspectorOpen => 'Open request inspector';
-
-  @override
   String reqTabRequests(int count) {
     return 'Requests ($count)';
   }

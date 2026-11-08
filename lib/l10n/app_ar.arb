@@ -80,7 +80,6 @@
   "diagNoticeCacheCleared": "تم مسح ذاكرة الويب المؤقتة",
   "diagNoticeActionFailed": "لم ينجح ذلك. حاول مرة أخرى.",
   "reqInspectorTitle": "مراقب الطلبات",
-  "reqInspectorOpen": "فتح مراقب الطلبات",
   "reqTabRequests": "الطلبات ({count})",
   "reqTabQueue": "الطابور ({count})",
   "reqEmpty": "لم تُسجَّل أي طلبات بعد",

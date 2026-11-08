@@ -1,7 +1,7 @@
 /// `AppConfig`: the per-tenant settings read once from compile-time defines
 /// (`WEB_URL`, `API_BASE_URL`, `TENANT`, `POSTHOG_KEY`, `POSTHOG_HOST`, and the
 /// tracking knobs `PING_TIMESTAMPS`, `GPS_SAMPLE_SECONDS`, `HEARTBEAT_SECONDS`,
-/// `DISTANCE_FILTER_M`, `UPLOAD_BATCH_SIZE`) and `REQUEST_INSPECTOR`, plus the
+/// `DISTANCE_FILTER_M`, `UPLOAD_BATCH_SIZE`), plus the
 /// bridge protocol version and the web-origin check the bridge trusts.
 ///
 /// Why it exists: D9 — one APK per tenant with nothing tenant-specific
@@ -12,8 +12,6 @@
 /// as a singleton in both locators. `WebSource.bundled` is declared but not
 /// implemented (M4, offline web assets).
 library;
-
-import 'package:flutter/foundation.dart';
 
 import '../../env/env.dart';
 
@@ -34,7 +32,6 @@ class AppConfig {
     this.heartbeatInterval = const Duration(seconds: 30),
     this.distanceFilterMeters = 0,
     this.uploadBatchSize = 100,
-    this.requestInspector = false,
   });
 
   factory AppConfig.fromEnvironment() {
@@ -55,7 +52,6 @@ class AppConfig {
       heartbeatInterval: const Duration(seconds: int.fromEnvironment('HEARTBEAT_SECONDS', defaultValue: 30)),
       distanceFilterMeters: const int.fromEnvironment('DISTANCE_FILTER_M', defaultValue: 0),
       uploadBatchSize: const int.fromEnvironment('UPLOAD_BATCH_SIZE', defaultValue: 100),
-      requestInspector: const bool.fromEnvironment('REQUEST_INSPECTOR', defaultValue: kDebugMode),
     );
   }
 
@@ -92,11 +88,6 @@ class AppConfig {
 
   /// Fixes per upload request (§11).
   final int uploadBatchSize;
-
-  /// Records API exchanges and shows the floating request-inspector button.
-  /// `REQUEST_INSPECTOR`, on by default in debug builds only (payloads carry
-  /// location history).
-  final bool requestInspector;
 
   /// `scheme://host[:port]` of the web app — the only origin the bridge trusts.
   String get webOrigin => webUrl.origin;

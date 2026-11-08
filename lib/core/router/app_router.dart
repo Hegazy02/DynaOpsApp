@@ -23,7 +23,6 @@ import '../../features/request_inspector/view/request_inspector_screen.dart';
 import '../../features/shell/cubit/native_navigation_cubit.dart';
 import '../../features/shell/cubit/shell_cubit.dart';
 import '../../features/shell/view/shell_screen.dart';
-import '../config/app_config.dart';
 import '../di/service_locator.dart';
 import 'permission_gate.dart';
 
@@ -39,7 +38,7 @@ GoRouter createAppRouter(PermissionGate gate) => GoRouter(
               BlocProvider(create: (_) => getIt<ShellCubit>()..start()),
               BlocProvider(create: (_) => getIt<NativeNavigationCubit>()),
             ],
-            child: ShellScreen(showRequestInspector: getIt<AppConfig>().requestInspector),
+            child: const ShellScreen(),
           ),
         ),
         GoRoute(

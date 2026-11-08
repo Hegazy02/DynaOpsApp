@@ -99,7 +99,7 @@ void _registerCore(AppConfig config) {
     ..registerLazySingleton(() => SecureStore(const FlutterSecureStorage()))
     ..registerLazySingleton(() => RequestLogDao(getIt<AppDatabase>().db))
     ..registerLazySingleton<Dio>(
-      () => createDioClient(getIt(), getIt(), requestLog: config.requestInspector ? getIt<RequestLogDao>() : null),
+      () => createDioClient(getIt(), getIt(), requestLog: getIt<RequestLogDao>()),
     );
 }
 

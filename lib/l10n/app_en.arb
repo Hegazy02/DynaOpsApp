@@ -166,8 +166,6 @@
   "@diagNoticeActionFailed": { "description": "Diagnostics snackbar when an action fails" },
   "reqInspectorTitle": "Request inspector",
   "@reqInspectorTitle": { "description": "Title of the debug request inspector screen" },
-  "reqInspectorOpen": "Open request inspector",
-  "@reqInspectorOpen": { "description": "Tooltip of the floating button that opens the request inspector" },
   "reqTabRequests": "Requests ({count})",
   "@reqTabRequests": {
     "description": "Request inspector tab listing recorded API requests",

@@ -62,7 +62,7 @@ Future<TrackingEngine> setupTaskLocator(AppConfig config) async {
       () => createDioClient(
         g(),
         g(),
-        requestLog: config.requestInspector ? RequestLogDao(database.db) : null,
+        requestLog: RequestLogDao(database.db),
         source: 'service',
       ),
     )
