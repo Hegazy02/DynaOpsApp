@@ -9,9 +9,9 @@
 library;
 
 abstract final class Env {
-  static const tenant = 'alraedprod';
-  static const webUrl = 'https://alraed.dynaops365.net/';
-  static const apiBaseUrl = 'https://alraedapi.dynaops365.net/api/';
+  static const tenant = 'alraeduat';
+  static const webUrl = 'https://alraeduat.dynaops365.net/';
+  static const apiBaseUrl = 'https://alraedapiuat.dynaops365.net/api/';
   static const posthogKey = '';
   static const posthogHost = 'https://eu.i.posthog.com';
 }
